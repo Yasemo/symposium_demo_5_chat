@@ -110,6 +110,17 @@ class ChatInterface {
         const time = utils.formatTime(message.timestamp);
         const visibilityToggle = messageManager.createVisibilityToggle(message.id);
         const colorClass = isUser ? '' : this.getConsultantColorClass(message.consultant_id);
+        
+        // Add "Add to Knowledge Base" button for consultant messages
+        const knowledgeBaseButton = !isUser ? 
+            `<button class="add-to-kb-btn" data-message-id="${message.id}" title="Add to Knowledge Base">📚</button>` : '';
+
+        // Add edit and delete buttons for all messages
+        const editButton = `<button class="edit-message-btn" data-message-id="${message.id}" title="Edit message">✏️</button>`;
+        const deleteButton = `<button class="delete-message-btn" data-message-id="${message.id}" title="Delete message">🗑️</button>`;
+        
+        // Show "edited" indicator if message was edited
+        const editedIndicator = message.updated_at ? '<span class="edited-indicator" title="This message was edited">(edited)</span>' : '';
 
         return `
             <div class="message ${isUser ? 'user' : 'assistant'}" data-message-id="${message.id}">
@@ -117,11 +128,14 @@ class ChatInterface {
                 <div class="message-content">
                     <div class="message-header">
                         <span class="message-author">${author}</span>
-                        <span class="message-time">${time}</span>
+                        <span class="message-time">${time} ${editedIndicator}</span>
                     </div>
-                    <div class="message-text">${this.formatMessageText(message.content)}</div>
+                    <div class="message-text" data-message-id="${message.id}">${this.formatMessageText(message.content)}</div>
                     <div class="message-controls">
                         ${visibilityToggle}
+                        ${knowledgeBaseButton}
+                        ${editButton}
+                        ${deleteButton}
                     </div>
                 </div>
             </div>

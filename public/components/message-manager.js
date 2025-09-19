@@ -159,6 +159,33 @@ class MessageManager {
                 this.toggleMessageVisibility(messageId, consultantId);
             });
         });
+
+        // Bind "Add to Knowledge Base" button events
+        document.querySelectorAll('.add-to-kb-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const messageId = parseInt(button.dataset.messageId);
+                this.addMessageToKnowledgeBase(messageId);
+            });
+        });
+
+        // Bind edit message button events
+        document.querySelectorAll('.edit-message-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const messageId = parseInt(button.dataset.messageId);
+                this.startEditMessage(messageId);
+            });
+        });
+
+        // Bind delete message button events
+        document.querySelectorAll('.delete-message-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const messageId = parseInt(button.dataset.messageId);
+                this.deleteMessage(messageId);
+            });
+        });
     }
 
     getMessages() {
@@ -172,6 +199,182 @@ class MessageManager {
     clearMessages() {
         this.messages = [];
         this.messageVisibility.clear();
+    }
+
+    addMessageToKnowledgeBase(messageId) {
+        const message = this.messages.find(m => m.id === messageId);
+        if (!message || message.is_user) return;
+
+        // Call the knowledge base component to create a card from this message
+        if (window.knowledgeBase) {
+            window.knowledgeBase.createCardFromMessage(
+                messageId, 
+                message.content, 
+                message.consultant_name || 'Assistant'
+            );
+        }
+    }
+
+    startEditMessage(messageId) {
+        const message = this.messages.find(m => m.id === messageId);
+        if (!message) return;
+
+        const messageTextElement = document.querySelector(`.message-text[data-message-id="${messageId}"]`);
+        if (!messageTextElement) return;
+
+        // Store original content
+        const originalContent = message.content;
+        
+        // Create textarea for editing
+        const textarea = document.createElement('textarea');
+        textarea.value = originalContent;
+        textarea.className = 'edit-message-textarea';
+        textarea.style.width = '100%';
+        textarea.style.minHeight = '60px';
+        textarea.style.resize = 'vertical';
+        textarea.style.fontFamily = 'inherit';
+        textarea.style.fontSize = 'inherit';
+        textarea.style.padding = '8px';
+        textarea.style.border = '1px solid #ddd';
+        textarea.style.borderRadius = '4px';
+
+        // Create save and cancel buttons
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'edit-message-buttons';
+        buttonContainer.style.marginTop = '8px';
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '8px';
+
+        const saveButton = document.createElement('button');
+        saveButton.textContent = 'Save';
+        saveButton.className = 'btn btn-primary btn-sm';
+        saveButton.style.padding = '4px 12px';
+        saveButton.style.fontSize = '12px';
+
+        const cancelButton = document.createElement('button');
+        cancelButton.textContent = 'Cancel';
+        cancelButton.className = 'btn btn-secondary btn-sm';
+        cancelButton.style.padding = '4px 12px';
+        cancelButton.style.fontSize = '12px';
+
+        buttonContainer.appendChild(saveButton);
+        buttonContainer.appendChild(cancelButton);
+
+        // Replace message text with edit interface
+        const editContainer = document.createElement('div');
+        editContainer.appendChild(textarea);
+        editContainer.appendChild(buttonContainer);
+        
+        messageTextElement.style.display = 'none';
+        messageTextElement.parentNode.insertBefore(editContainer, messageTextElement.nextSibling);
+
+        // Focus textarea and select all text
+        textarea.focus();
+        textarea.select();
+
+        // Auto-resize textarea
+        const autoResize = () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+        };
+        textarea.addEventListener('input', autoResize);
+        autoResize();
+
+        // Handle save
+        const handleSave = async () => {
+            const newContent = textarea.value.trim();
+            if (!newContent) {
+                utils.showError('Message content cannot be empty');
+                return;
+            }
+
+            if (newContent === originalContent) {
+                handleCancel();
+                return;
+            }
+
+            const success = await this.editMessage(messageId, newContent);
+            if (success) {
+                // Edit interface will be removed when messages are re-rendered
+            }
+        };
+
+        // Handle cancel
+        const handleCancel = () => {
+            editContainer.remove();
+            messageTextElement.style.display = '';
+        };
+
+        // Event listeners
+        saveButton.addEventListener('click', handleSave);
+        cancelButton.addEventListener('click', handleCancel);
+
+        // Handle Ctrl+Enter to save, Escape to cancel
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                e.preventDefault();
+                handleSave();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            }
+        });
+    }
+
+    async editMessage(messageId, newContent) {
+        try {
+            const response = await api.editMessage(messageId, newContent);
+            
+            if (response.success) {
+                // Update local message array
+                const messageIndex = this.messages.findIndex(m => m.id === messageId);
+                if (messageIndex !== -1) {
+                    this.messages[messageIndex] = { ...this.messages[messageIndex], ...response.message };
+                }
+                
+                // Re-render chat interface
+                if (window.chatInterface) {
+                    window.chatInterface.loadMessages();
+                }
+                
+                utils.showSuccess('Message updated successfully');
+                return true;
+            }
+        } catch (error) {
+            console.error('Error editing message:', error);
+            utils.showError('Failed to edit message: ' + error.message);
+            return false;
+        }
+    }
+
+    async deleteMessage(messageId) {
+        if (!confirm('Are you sure you want to delete this message? This action cannot be undone.')) {
+            return false;
+        }
+
+        try {
+            const response = await api.deleteMessage(messageId);
+            
+            if (response.success) {
+                // Remove from local message array
+                this.messages = this.messages.filter(m => m.id !== messageId);
+                
+                // Remove from visibility map
+                this.messageVisibility.delete(messageId);
+                
+                // Re-render chat interface
+                if (window.chatInterface) {
+                    window.chatInterface.loadMessages();
+                }
+                
+                utils.showSuccess('Message deleted successfully');
+                return true;
+            }
+        } catch (error) {
+            console.error('Error deleting message:', error);
+            utils.showError('Failed to delete message: ' + error.message);
+            return false;
+        }
     }
 }
 

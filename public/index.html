@@ -29,32 +29,53 @@
             <!-- Sidebar -->
             <aside class="sidebar">
                 <!-- Symposium Section -->
-                <div class="section">
-                    <h3>Symposium</h3>
-                    <div id="symposium-selector" class="symposium-selector" style="display: none;">
-                        <select id="symposium-select">
-                            <option value="">Select a symposium...</option>
-                        </select>
+                <div class="section collapsible">
+                    <div class="section-header" data-section="symposium">
+                        <h3>Symposium</h3>
+                        <button class="collapse-toggle" aria-label="Toggle section">
+                            <span class="collapse-icon">▼</span>
+                        </button>
                     </div>
-                    <div id="symposium-info" class="symposium-info">
-                        <button id="create-symposium-btn" class="btn btn-primary">Create Symposium</button>
+                    <div class="section-content" id="symposium-content">
+                        <div id="symposium-selector" class="symposium-selector" style="display: none;">
+                            <select id="symposium-select">
+                                <option value="">Select a symposium...</option>
+                            </select>
+                        </div>
+                        <div id="symposium-info" class="symposium-info">
+                            <button id="create-symposium-btn" class="btn btn-primary">Create Symposium</button>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Consultants Section -->
-                <div class="section">
-                    <h3>Consultants</h3>
-                    <div id="consultants-list" class="consultants-list">
-                        <p class="empty-state">Create a symposium first</p>
+                <div class="section collapsible">
+                    <div class="section-header" data-section="consultants">
+                        <h3>Consultants</h3>
+                        <button class="collapse-toggle" aria-label="Toggle section">
+                            <span class="collapse-icon">▼</span>
+                        </button>
                     </div>
-                    <button id="add-consultant-btn" class="btn btn-secondary" disabled>Add Consultant</button>
+                    <div class="section-content" id="consultants-content">
+                        <div id="consultants-list" class="consultants-list">
+                            <p class="empty-state">Create a symposium first</p>
+                        </div>
+                        <button id="add-consultant-btn" class="btn btn-secondary" disabled>Add Consultant</button>
+                    </div>
                 </div>
 
                 <!-- Active Consultant -->
-                <div class="section">
-                    <h3>Active Consultant</h3>
-                    <div id="active-consultant" class="active-consultant">
-                        <p class="empty-state">Select a consultant</p>
+                <div class="section collapsible">
+                    <div class="section-header" data-section="active-consultant">
+                        <h3>Active Consultant</h3>
+                        <button class="collapse-toggle" aria-label="Toggle section">
+                            <span class="collapse-icon">▼</span>
+                        </button>
+                    </div>
+                    <div class="section-content" id="active-consultant-content">
+                        <div id="active-consultant" class="active-consultant">
+                            <p class="empty-state">Select a consultant</p>
+                        </div>
                     </div>
                 </div>
             </aside>
@@ -78,6 +99,20 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Knowledge Base -->
+            <aside class="knowledge-base">
+                <div class="knowledge-base-header">
+                    <h3>Knowledge Base</h3>
+                    <button id="add-card-btn" class="btn btn-secondary btn-small" disabled>+ Add Card</button>
+                </div>
+                <div id="knowledge-base-cards" class="knowledge-base-cards">
+                    <div class="empty-state">
+                        <p>No knowledge base cards yet</p>
+                        <p class="empty-state-hint">Add consultant responses or create your own cards</p>
+                    </div>
+                </div>
+            </aside>
         </main>
     </div>
 
@@ -144,6 +179,46 @@
         </div>
     </div>
 
+    <!-- Knowledge Base Card Modal -->
+    <div id="knowledge-card-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="card-modal-title">Edit Knowledge Card</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="knowledge-card-form">
+                    <div class="form-group">
+                        <label for="card-title">Card Title</label>
+                        <input type="text" id="card-title" required placeholder="Enter a descriptive title...">
+                    </div>
+                    <div class="form-group">
+                        <label for="card-content">Content</label>
+                        <div class="card-editor-container">
+                            <div class="editor-toolbar">
+                                <button type="button" id="preview-toggle" class="btn btn-secondary btn-small">Preview</button>
+                                <span class="word-count" id="word-count">0 words</span>
+                            </div>
+                            <textarea id="card-content" rows="15" required placeholder="Enter your content here... (Markdown supported)"></textarea>
+                            <div id="card-preview" class="card-preview" style="display: none;"></div>
+                        </div>
+                    </div>
+                    <div class="card-metadata" id="card-metadata" style="display: none;">
+                        <small class="metadata-text">
+                            <strong>Source:</strong> <span id="card-source"></span><br>
+                            <strong>Created:</strong> <span id="card-created"></span><br>
+                            <strong>Updated:</strong> <span id="card-updated"></span>
+                        </small>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-card">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Card</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay">
         <div class="loading-spinner"></div>
@@ -158,6 +233,8 @@
     <script src="components/chat-interface.js"></script>
     <script src="components/message-manager.js"></script>
     <script src="components/credit-manager.js"></script>
+    <script src="components/airtable-config.js"></script>
+    <script src="components/knowledge-base.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

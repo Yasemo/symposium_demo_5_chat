@@ -57,6 +57,12 @@ class API {
         });
     }
 
+    async deleteConsultant(consultantId) {
+        return this.request(`/consultants/${consultantId}`, {
+            method: 'DELETE',
+        });
+    }
+
     // Message endpoints
     async getMessages(symposiumId) {
         return this.request(`/messages?symposium_id=${symposiumId}`);
@@ -92,6 +98,86 @@ class API {
         return this.request('/clear-messages', {
             method: 'POST',
             body: { symposium_id: symposiumId },
+        });
+    }
+
+    // Edit message
+    async editMessage(messageId, content) {
+        return this.request(`/messages/${messageId}`, {
+            method: 'PUT',
+            body: { content },
+        });
+    }
+
+    // Delete message
+    async deleteMessage(messageId) {
+        return this.request(`/messages/${messageId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // Airtable endpoints
+    async getAirtableConfig(consultantId) {
+        return this.request(`/airtable/config?consultant_id=${consultantId}`);
+    }
+
+    async saveAirtableConfig(data) {
+        return this.request('/airtable/config', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async testAirtableConnection(data) {
+        return this.request('/airtable/test-connection', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async getAirtableTables(data) {
+        return this.request('/airtable/tables', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    // Knowledge Base endpoints
+    async getKnowledgeBaseCards(symposiumId) {
+        return this.request(`/knowledge-base?symposium_id=${symposiumId}`);
+    }
+
+    async createKnowledgeBaseCard(data) {
+        return this.request('/knowledge-base', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async createCardFromMessage(data) {
+        return this.request('/knowledge-base/from-message', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async updateKnowledgeBaseCard(cardId, data) {
+        return this.request(`/knowledge-base/${cardId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async deleteKnowledgeBaseCard(cardId) {
+        return this.request(`/knowledge-base/${cardId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async toggleKnowledgeBaseCardVisibility(data) {
+        return this.request('/knowledge-base/toggle-visibility', {
+            method: 'POST',
+            body: data,
         });
     }
 }

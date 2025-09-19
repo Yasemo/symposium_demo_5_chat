@@ -23,6 +23,7 @@ class SymposiumApp {
         
         this.setupGlobalErrorHandling();
         this.setupKeyboardShortcuts();
+        this.setupCollapsibleSections();
         
         console.log('✅ Symposium App Ready!');
     }
@@ -77,6 +78,52 @@ class SymposiumApp {
                 }
             }
         });
+    }
+
+    setupCollapsibleSections() {
+        // Load saved collapse states from localStorage
+        const savedStates = JSON.parse(localStorage.getItem('sidebarCollapseStates') || '{}');
+        
+        // Initialize all collapsible sections
+        document.querySelectorAll('.section.collapsible').forEach(section => {
+            const header = section.querySelector('.section-header');
+            const sectionName = header.dataset.section;
+            
+            // Apply saved state or default to expanded
+            if (savedStates[sectionName] === true) {
+                section.classList.add('collapsed');
+            }
+            
+            // Add click handler to section header
+            header.addEventListener('click', (e) => {
+                // Don't collapse if clicking on buttons inside the header
+                if (e.target.closest('button') && !e.target.closest('.collapse-toggle')) {
+                    return;
+                }
+                
+                this.toggleSection(section, sectionName);
+            });
+        });
+    }
+
+    toggleSection(section, sectionName) {
+        const isCollapsed = section.classList.contains('collapsed');
+        
+        if (isCollapsed) {
+            section.classList.remove('collapsed');
+        } else {
+            section.classList.add('collapsed');
+        }
+        
+        // Save state to localStorage
+        const savedStates = JSON.parse(localStorage.getItem('sidebarCollapseStates') || '{}');
+        savedStates[sectionName] = !isCollapsed;
+        localStorage.setItem('sidebarCollapseStates', JSON.stringify(savedStates));
+        
+        // Dispatch custom event for other components to react to
+        window.dispatchEvent(new CustomEvent('sectionToggled', {
+            detail: { sectionName, collapsed: !isCollapsed }
+        }));
     }
 }
 

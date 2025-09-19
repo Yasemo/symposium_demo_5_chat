@@ -164,8 +164,88 @@ class ConsultantManager {
     }
 
     showCreateModal() {
+        // Show template selection first
+        this.showTemplateSelection();
+    }
+
+    showTemplateSelection() {
         const modal = document.getElementById('consultant-modal');
+        const modalHeader = modal.querySelector('.modal-header h2');
+        const modalBody = modal.querySelector('.modal-body');
+        
+        modalHeader.textContent = 'Add Consultant';
+        
+        modalBody.innerHTML = `
+            <div class="template-selection">
+                <h3>Choose Consultant Type</h3>
+                <div class="template-options">
+                    <div class="template-option" data-template="custom">
+                        <div class="template-icon">🤖</div>
+                        <h4>Custom Consultant</h4>
+                        <p>Create a consultant from scratch with your own system prompt and model selection.</p>
+                    </div>
+                    <div class="template-option" data-template="airtable">
+                        <div class="template-icon">📊</div>
+                        <h4>Airtable Data Assistant</h4>
+                        <p>Pre-configured consultant specialized in querying and analyzing Airtable databases.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
         modal.classList.add('active');
+        
+        // Bind template selection events
+        modalBody.querySelectorAll('.template-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const template = option.dataset.template;
+                if (template === 'custom') {
+                    this.showCustomConsultantForm();
+                } else if (template === 'airtable') {
+                    this.showAirtableConsultantForm();
+                }
+            });
+        });
+    }
+
+    showCustomConsultantForm() {
+        const modal = document.getElementById('consultant-modal');
+        const modalHeader = modal.querySelector('.modal-header h2');
+        const modalBody = modal.querySelector('.modal-body');
+        
+        modalHeader.textContent = 'Create Custom Consultant';
+        
+        modalBody.innerHTML = `
+            <form id="consultant-form">
+                <div class="form-group">
+                    <label for="consultant-name">Consultant Name</label>
+                    <input type="text" id="consultant-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="consultant-model">LLM Model</label>
+                    <div class="model-search-container">
+                        <input type="text" id="model-search" placeholder="Search models..." class="model-search-input">
+                        <select id="consultant-model" required>
+                            <option value="">Loading models...</option>
+                        </select>
+                    </div>
+                    <div id="model-info" class="model-info"></div>
+                </div>
+                <div class="form-group">
+                    <label for="consultant-prompt">System Prompt</label>
+                    <textarea id="consultant-prompt" rows="4" required placeholder="Describe this consultant's role and expertise..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="back-to-templates">← Back</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-consultant">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Consultant</button>
+                </div>
+            </form>
+        `;
+        
+        // Rebind events for the new form
+        this.bindCustomFormEvents();
+        this.populateModelSelect();
         
         // Focus on the name input
         setTimeout(() => {
@@ -173,17 +253,412 @@ class ConsultantManager {
         }, 100);
     }
 
+    showAirtableConsultantForm() {
+        const modal = document.getElementById('consultant-modal');
+        const modalHeader = modal.querySelector('.modal-header h2');
+        const modalBody = modal.querySelector('.modal-body');
+        
+        modalHeader.textContent = 'Add Airtable Data Assistant';
+        
+        modalBody.innerHTML = `
+            <form id="airtable-consultant-form">
+                <div class="template-preview">
+                    <div class="template-icon">📊</div>
+                    <h3>Airtable Data Assistant</h3>
+                    <p>This specialized consultant can query and analyze data from your Airtable databases. It interprets natural language questions and retrieves relevant information from your connected Airtable base.</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="airtable-consultant-name">Assistant Name</label>
+                    <input type="text" id="airtable-consultant-name" value="Airtable Data Assistant" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="airtable-base-id">Airtable Base ID</label>
+                    <input type="text" id="airtable-base-id" placeholder="appXXXXXXXXXXXXXX" required>
+                    <small>Find this in your Airtable base URL or API documentation</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="airtable-api-key">Airtable API Key</label>
+                    <input type="password" id="airtable-api-key" placeholder="keyXXXXXXXXXXXXXX" required>
+                    <small>Create a personal access token in your Airtable account</small>
+                </div>
+
+                <div class="form-group">
+                    <button type="button" id="test-airtable-connection" class="btn btn-secondary" disabled>Test Connection & Load Tables</button>
+                    <div id="airtable-connection-status" class="status-message"></div>
+                </div>
+
+                <div class="form-group" id="table-selection-group" style="display: none;">
+                    <label for="airtable-table-select">Select Table</label>
+                    <select id="airtable-table-select" required>
+                        <option value="">Choose a table...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="airtable-consultant-model">LLM Model</label>
+                    <div class="model-search-container">
+                        <input type="text" id="airtable-model-search" placeholder="Search models..." class="model-search-input">
+                        <select id="airtable-consultant-model" required>
+                            <option value="">Loading models...</option>
+                        </select>
+                    </div>
+                    <div id="airtable-model-info" class="model-info"></div>
+                </div>
+                
+                <div class="capabilities-info">
+                    <h4>Capabilities:</h4>
+                    <ul>
+                        <li>Query records with natural language (e.g., "How many doctors are in the database?")</li>
+                        <li>Filter and search data based on field values</li>
+                        <li>Provide data summaries and insights</li>
+                        <li>Return up to 20 records per query for detailed analysis</li>
+                    </ul>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="back-to-templates-airtable">← Back</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-airtable-consultant">Cancel</button>
+                    <button type="submit" class="btn btn-primary" disabled id="create-airtable-assistant">Create Assistant</button>
+                </div>
+            </form>
+        `;
+        
+        // Bind events for Airtable form
+        this.bindAirtableFormEvents();
+        this.populateAirtableModelSelect();
+        
+        // Pre-select Claude 3.5 Sonnet if available
+        setTimeout(() => {
+            const modelSelect = document.getElementById('airtable-consultant-model');
+            const claudeOption = Array.from(modelSelect.options).find(option => 
+                option.value.includes('claude-3.5-sonnet')
+            );
+            if (claudeOption) {
+                modelSelect.value = claudeOption.value;
+                this.updateAirtableModelInfo();
+            }
+        }, 500);
+    }
+
+    bindCustomFormEvents() {
+        const form = document.getElementById('consultant-form');
+        const cancelBtn = document.getElementById('cancel-consultant');
+        const backBtn = document.getElementById('back-to-templates');
+        const modelSelect = document.getElementById('consultant-model');
+        const modelSearch = document.getElementById('model-search');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createCustomConsultant();
+        });
+
+        cancelBtn.addEventListener('click', () => this.hideCreateModal());
+        backBtn.addEventListener('click', () => this.showTemplateSelection());
+
+        modelSelect.addEventListener('change', () => this.updateModelInfo());
+        modelSearch.addEventListener('input', (e) => this.filterModels(e.target.value));
+    }
+
+    bindAirtableFormEvents() {
+        const form = document.getElementById('airtable-consultant-form');
+        const cancelBtn = document.getElementById('cancel-airtable-consultant');
+        const backBtn = document.getElementById('back-to-templates-airtable');
+        const modelSelect = document.getElementById('airtable-consultant-model');
+        const modelSearch = document.getElementById('airtable-model-search');
+        const testBtn = document.getElementById('test-airtable-connection');
+        const baseIdInput = document.getElementById('airtable-base-id');
+        const apiKeyInput = document.getElementById('airtable-api-key');
+        const tableSelect = document.getElementById('airtable-table-select');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createAirtableConsultant();
+        });
+
+        cancelBtn.addEventListener('click', () => this.hideCreateModal());
+        backBtn.addEventListener('click', () => this.showTemplateSelection());
+
+        modelSelect.addEventListener('change', () => this.updateAirtableModelInfo());
+        modelSearch.addEventListener('input', (e) => this.filterAirtableModels(e.target.value));
+
+        // Test connection button
+        testBtn.addEventListener('click', () => this.testAirtableConnection());
+
+        // Enable test button when both fields are filled
+        const validateInputs = () => {
+            const baseId = baseIdInput.value.trim();
+            const apiKey = apiKeyInput.value.trim();
+            const isValid = baseId.startsWith('app') && baseId.length >= 17 && 
+                           (apiKey.startsWith('key') || apiKey.startsWith('pat')) && apiKey.length >= 17;
+            testBtn.disabled = !isValid;
+            console.log('Validation:', { baseId, apiKey, isValid }); // Debug log
+        };
+
+        baseIdInput.addEventListener('input', validateInputs);
+        apiKeyInput.addEventListener('input', validateInputs);
+        
+        // Initial validation
+        validateInputs();
+
+        // Table selection
+        tableSelect.addEventListener('change', () => {
+            const createBtn = document.getElementById('create-airtable-assistant');
+            const modelSelect = document.getElementById('airtable-consultant-model');
+            createBtn.disabled = !(tableSelect.value && modelSelect.value);
+        });
+    }
+
+    populateAirtableModelSelect(filteredModels = null) {
+        const select = document.getElementById('airtable-consultant-model');
+        const modelsToShow = filteredModels || this.availableModels;
+        
+        select.innerHTML = '<option value="">Select a model...</option>';
+        
+        modelsToShow.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            option.dataset.model = JSON.stringify(model);
+            select.appendChild(option);
+        });
+    }
+
+    filterAirtableModels(searchTerm) {
+        if (!searchTerm.trim()) {
+            this.populateAirtableModelSelect();
+            return;
+        }
+
+        const filtered = this.availableModels.filter(model => {
+            const searchLower = searchTerm.toLowerCase();
+            return (
+                model.name.toLowerCase().includes(searchLower) ||
+                model.id.toLowerCase().includes(searchLower) ||
+                (model.description && model.description.toLowerCase().includes(searchLower))
+            );
+        });
+
+        this.populateAirtableModelSelect(filtered);
+    }
+
+    updateAirtableModelInfo() {
+        const select = document.getElementById('airtable-consultant-model');
+        const infoDiv = document.getElementById('airtable-model-info');
+        
+        if (!select.value) {
+            infoDiv.innerHTML = '';
+            return;
+        }
+
+        const modelData = JSON.parse(select.selectedOptions[0].dataset.model);
+        
+        infoDiv.innerHTML = `
+            <div>
+                <strong>${modelData.name}</strong>
+                ${modelData.description ? `<p>${modelData.description}</p>` : ''}
+                <div class="model-pricing">
+                    <div class="pricing-item">
+                        <div class="pricing-label">Input</div>
+                        <div class="pricing-value">${utils.formatPrice(modelData.pricing.prompt)}</div>
+                    </div>
+                    <div class="pricing-item">
+                        <div class="pricing-label">Output</div>
+                        <div class="pricing-value">${utils.formatPrice(modelData.pricing.completion)}</div>
+                    </div>
+                    <div class="pricing-item">
+                        <div class="pricing-label">Context</div>
+                        <div class="pricing-value">${modelData.context_length.toLocaleString()}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async createCustomConsultant() {
+        const symposium = symposiumManager.getCurrentSymposium();
+        if (!symposium) {
+            utils.showError('Please create a symposium first');
+            return;
+        }
+
+        const name = document.getElementById('consultant-name').value.trim();
+        const model = document.getElementById('consultant-model').value;
+        const systemPrompt = document.getElementById('consultant-prompt').value.trim();
+
+        if (!name || !model || !systemPrompt) {
+            utils.showError('Please fill in all fields');
+            return;
+        }
+
+        try {
+            utils.showLoading();
+            
+            const consultant = await api.createConsultant({
+                symposium_id: symposium.id,
+                name,
+                model,
+                system_prompt: systemPrompt,
+                consultant_type: 'standard'
+            });
+
+            this.consultants.push(consultant);
+            this.updateUI();
+            this.hideCreateModal();
+            utils.showSuccess('Consultant added successfully!');
+            
+            // Auto-select the new consultant
+            this.setActiveConsultant(consultant);
+            
+        } catch (error) {
+            console.error('Error creating consultant:', error);
+            utils.showError('Failed to create consultant');
+        } finally {
+            utils.hideLoading();
+        }
+    }
+
+    async testAirtableConnection() {
+        const baseId = document.getElementById('airtable-base-id').value.trim();
+        const apiKey = document.getElementById('airtable-api-key').value.trim();
+        const statusDiv = document.getElementById('airtable-connection-status');
+        const testBtn = document.getElementById('test-airtable-connection');
+        const tableGroup = document.getElementById('table-selection-group');
+        const tableSelect = document.getElementById('airtable-table-select');
+
+        testBtn.disabled = true;
+        testBtn.textContent = 'Testing...';
+        statusDiv.innerHTML = '<div class="status-loading">Testing connection...</div>';
+
+        try {
+            const result = await api.testAirtableConnection({ base_id: baseId, api_key: apiKey });
+            
+            if (result.success) {
+                statusDiv.innerHTML = '<div class="status-success">✅ Connection successful!</div>';
+                
+                // Load tables
+                const tablesResult = await api.getAirtableTables({ base_id: baseId, api_key: apiKey });
+                
+                if (tablesResult.success && tablesResult.tables) {
+                    tableSelect.innerHTML = '<option value="">Choose a table...</option>';
+                    
+                    tablesResult.tables.forEach(table => {
+                        const option = document.createElement('option');
+                        option.value = table.name;
+                        option.textContent = `${table.name} (${table.fieldCount} fields)`;
+                        tableSelect.appendChild(option);
+                    });
+                    
+                    tableGroup.style.display = 'block';
+                    statusDiv.innerHTML += '<div class="status-success">📊 Tables loaded successfully!</div>';
+                } else {
+                    statusDiv.innerHTML += '<div class="status-error">❌ Failed to load tables</div>';
+                }
+            } else {
+                statusDiv.innerHTML = `<div class="status-error">❌ Connection failed: ${result.error}</div>`;
+            }
+        } catch (error) {
+            statusDiv.innerHTML = `<div class="status-error">❌ Connection failed: ${error.message}</div>`;
+        } finally {
+            testBtn.disabled = false;
+            testBtn.textContent = 'Test Connection & Load Tables';
+        }
+    }
+
+    async createAirtableConsultant() {
+        const symposium = symposiumManager.getCurrentSymposium();
+        if (!symposium) {
+            utils.showError('Please create a symposium first');
+            return;
+        }
+
+        const name = document.getElementById('airtable-consultant-name').value.trim();
+        const model = document.getElementById('airtable-consultant-model').value;
+        const baseId = document.getElementById('airtable-base-id').value.trim();
+        const apiKey = document.getElementById('airtable-api-key').value.trim();
+        const tableName = document.getElementById('airtable-table-select').value;
+
+        if (!name || !model || !baseId || !apiKey || !tableName) {
+            utils.showError('Please fill in all fields and test the connection');
+            return;
+        }
+
+        const systemPrompt = `You are an Airtable Data Assistant specialized in querying and analyzing data from Airtable databases. You help users retrieve information from their Airtable bases by interpreting natural language queries and converting them into appropriate database operations. You can answer questions about record counts, find specific entries, analyze data patterns, and provide insights based on the data. You're knowledgeable about Airtable's structure and can work with various field types including text, numbers, dates, attachments, and relationships. When users ask about their data, you query the connected Airtable base and provide clear, formatted responses with the relevant information. You always limit results to a maximum of 20 records to keep responses manageable.`;
+
+        try {
+            utils.showLoading();
+            
+            // Create the consultant
+            const consultant = await api.createConsultant({
+                symposium_id: symposium.id,
+                name,
+                model,
+                system_prompt: systemPrompt,
+                consultant_type: 'airtable'
+            });
+
+            // Save the Airtable configuration
+            await api.saveAirtableConfig({
+                consultant_id: consultant.id,
+                base_id: baseId,
+                api_key: apiKey,
+                table_name: tableName
+            });
+
+            this.consultants.push(consultant);
+            this.updateUI();
+            this.hideCreateModal();
+            utils.showSuccess(`Airtable Data Assistant "${name}" created successfully and connected to table "${tableName}"!`);
+            
+            // Auto-select the new consultant
+            this.setActiveConsultant(consultant);
+            
+        } catch (error) {
+            console.error('Error creating Airtable consultant:', error);
+            utils.showError('Failed to create Airtable consultant');
+        } finally {
+            utils.hideLoading();
+        }
+    }
+
     hideCreateModal() {
         const modal = document.getElementById('consultant-modal');
         modal.classList.remove('active');
         
-        // Reset form
-        document.getElementById('consultant-form').reset();
-        document.getElementById('model-info').innerHTML = '';
-        document.getElementById('model-search').value = '';
+        // Reset forms if they exist
+        const consultantForm = document.getElementById('consultant-form');
+        const airtableForm = document.getElementById('airtable-consultant-form');
+        const modelInfo = document.getElementById('model-info');
+        const airtableModelInfo = document.getElementById('airtable-model-info');
+        const modelSearch = document.getElementById('model-search');
+        const airtableModelSearch = document.getElementById('airtable-model-search');
         
-        // Reset model list to show all models
-        this.populateModelSelect();
+        if (consultantForm) {
+            consultantForm.reset();
+        }
+        if (airtableForm) {
+            airtableForm.reset();
+        }
+        if (modelInfo) {
+            modelInfo.innerHTML = '';
+        }
+        if (airtableModelInfo) {
+            airtableModelInfo.innerHTML = '';
+        }
+        if (modelSearch) {
+            modelSearch.value = '';
+        }
+        if (airtableModelSearch) {
+            airtableModelSearch.value = '';
+        }
+        
+        // Reset model list to show all models if the select exists
+        const modelSelect = document.getElementById('consultant-model');
+        if (modelSelect && this.availableModels) {
+            this.populateModelSelect();
+        }
     }
 
     async createConsultant() {
@@ -254,18 +729,40 @@ class ConsultantManager {
         listContainer.innerHTML = this.consultants.map(consultant => `
             <div class="consultant-item ${this.activeConsultant?.id === consultant.id ? 'active' : ''}" 
                  data-consultant-id="${consultant.id}">
-                <div class="consultant-name">${consultant.name}</div>
-                <div class="consultant-model">${consultant.model}</div>
+                <div class="consultant-info">
+                    <div class="consultant-name">${consultant.name}</div>
+                    <div class="consultant-model">${consultant.model}</div>
+                </div>
+                <button class="delete-consultant-btn" data-consultant-id="${consultant.id}" title="Delete consultant">
+                    🗑️
+                </button>
             </div>
         `).join('');
 
-        // Bind click events
+        // Bind click events for consultant selection
         listContainer.querySelectorAll('.consultant-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                // Don't select if clicking the delete button
+                if (e.target.classList.contains('delete-consultant-btn')) {
+                    return;
+                }
+                
                 const consultantId = parseInt(item.dataset.consultantId);
                 const consultant = this.consultants.find(c => c.id === consultantId);
                 if (consultant) {
                     this.setActiveConsultant(consultant);
+                }
+            });
+        });
+
+        // Bind delete button events
+        listContainer.querySelectorAll('.delete-consultant-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent consultant selection
+                const consultantId = parseInt(btn.dataset.consultantId);
+                const consultant = this.consultants.find(c => c.id === consultantId);
+                if (consultant) {
+                    this.showDeleteConfirmation(consultant);
                 }
             });
         });
@@ -292,6 +789,54 @@ class ConsultantManager {
 
     getActiveConsultant() {
         return this.activeConsultant;
+    }
+
+    showDeleteConfirmation(consultant) {
+        const confirmed = confirm(
+            `Are you sure you want to delete "${consultant.name}"?\n\n` +
+            `This will permanently delete the consultant and all their messages. This action cannot be undone.`
+        );
+        
+        if (confirmed) {
+            this.deleteConsultant(consultant);
+        }
+    }
+
+    async deleteConsultant(consultant) {
+        try {
+            utils.showLoading();
+            
+            // Call the API to delete the consultant
+            await api.deleteConsultant(consultant.id);
+            
+            // Remove from local array
+            this.consultants = this.consultants.filter(c => c.id !== consultant.id);
+            
+            // Handle active consultant selection
+            if (this.activeConsultant && this.activeConsultant.id === consultant.id) {
+                // If we deleted the active consultant, select another one or clear selection
+                if (this.consultants.length > 0) {
+                    this.setActiveConsultant(this.consultants[0]);
+                } else {
+                    this.activeConsultant = null;
+                    // Notify other components that no consultant is selected
+                    window.dispatchEvent(new CustomEvent('consultantChanged', {
+                        detail: null
+                    }));
+                }
+            }
+            
+            // Update the UI
+            this.updateUI();
+            
+            utils.showSuccess(`Consultant "${consultant.name}" deleted successfully`);
+            
+        } catch (error) {
+            console.error('Error deleting consultant:', error);
+            utils.showError(`Failed to delete consultant: ${error.message}`);
+        } finally {
+            utils.hideLoading();
+        }
     }
 
     getConsultants() {

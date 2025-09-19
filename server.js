@@ -4,10 +4,14 @@ import { Database } from "https://deno.land/x/sqlite3@0.11.1/mod.ts";
 import { initDatabase } from "./database.js";
 import { getOpenRouterModels, getOpenRouterAuth, chatWithOpenRouter } from "./openrouter.js";
 import { seedDatabase } from "./seed-data.js";
+import { AirtableService } from "./airtable-client.js";
 
 const db = new Database("symposium.db");
 await initDatabase(db);
 await seedDatabase(db);
+
+// Initialize Airtable service
+const airtableService = new AirtableService(db);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,7 +119,80 @@ async function handleApiRequest(req, url, db) {
       }
       break;
 
+    case "/airtable/config":
+      if (method === "GET") {
+        const consultantId = url.searchParams.get("consultant_id");
+        return await getAirtableConfig(consultantId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return await saveAirtableConfig(body);
+      }
+      break;
+
+    case "/airtable/test-connection":
+      if (method === "POST") {
+        const body = await req.json();
+        return await testAirtableConnection(body);
+      }
+      break;
+
+    case "/airtable/tables":
+      if (method === "POST") {
+        const body = await req.json();
+        return await getAirtableTables(body);
+      }
+      break;
+
+    case "/knowledge-base":
+      if (method === "GET") {
+        const symposiumId = url.searchParams.get("symposium_id");
+        return getKnowledgeBaseCards(db, symposiumId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return createKnowledgeBaseCard(db, body);
+      }
+      break;
+
+    case "/knowledge-base/from-message":
+      if (method === "POST") {
+        const body = await req.json();
+        return createCardFromMessage(db, body);
+      }
+      break;
+
+    case "/knowledge-base/toggle-visibility":
+      if (method === "POST") {
+        const body = await req.json();
+        return toggleCardVisibility(db, body);
+      }
+      break;
+
     default:
+      // Handle consultant deletion with ID in path
+      if (path.startsWith("/consultants/") && method === "DELETE") {
+        const consultantId = path.split("/")[2];
+        return deleteConsultant(db, consultantId);
+      }
+      // Handle message operations with ID in path
+      if (path.startsWith("/messages/") && path.split("/").length === 3) {
+        const messageId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return editMessage(db, messageId, body);
+        } else if (method === "DELETE") {
+          return deleteMessage(db, messageId);
+        }
+      }
+      // Handle knowledge base card operations with ID in path
+      if (path.startsWith("/knowledge-base/") && path.split("/").length === 3) {
+        const cardId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return updateKnowledgeBaseCard(db, cardId, body);
+        } else if (method === "DELETE") {
+          return deleteKnowledgeBaseCard(db, cardId);
+        }
+      }
       throw new Error("Not found");
   }
 }
@@ -138,11 +215,36 @@ function getConsultants(db, symposiumId) {
   return stmt.all(symposiumId);
 }
 
-function createConsultant(db, { symposium_id, name, model, system_prompt }) {
+function createConsultant(db, { symposium_id, name, model, system_prompt, consultant_type = 'standard' }) {
   const stmt = db.prepare(
-    "INSERT INTO consultants (symposium_id, name, model, system_prompt, created_at) VALUES (?, ?, ?, ?, datetime('now')) RETURNING *"
+    "INSERT INTO consultants (symposium_id, name, model, system_prompt, consultant_type, created_at) VALUES (?, ?, ?, ?, ?, datetime('now')) RETURNING *"
   );
-  return stmt.get(symposium_id, name, model, system_prompt);
+  return stmt.get(symposium_id, name, model, system_prompt, consultant_type);
+}
+
+function deleteConsultant(db, consultantId) {
+  if (!consultantId || isNaN(consultantId)) {
+    throw new Error('Valid consultant ID is required');
+  }
+
+  // Check if consultant exists
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultantId);
+  if (!consultant) {
+    throw new Error('Consultant not found');
+  }
+
+  // Delete the consultant (CASCADE will handle related records)
+  const stmt = db.prepare("DELETE FROM consultants WHERE id = ?");
+  const result = stmt.run(consultantId);
+
+  if (result.changes === 0) {
+    throw new Error('Failed to delete consultant');
+  }
+
+  return {
+    success: true,
+    deletedConsultant: consultant
+  };
 }
 
 function getMessages(db, symposiumId) {
@@ -225,12 +327,18 @@ function clearMessages(db, { symposium_id }) {
   };
 }
 
+// Enhanced handleChat to support Airtable consultants
 async function handleChat(db, { symposium_id, consultant_id, message }) {
   // Get symposium details
   const symposium = db.prepare("SELECT * FROM symposiums WHERE id = ?").get(symposium_id);
   
   // Get consultant details
   const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
+  
+  // Check if this is an Airtable consultant
+  if (consultant.consultant_type === 'airtable') {
+    return await handleAirtableChat(db, { symposium_id, consultant_id, message });
+  }
   
   // Get visible messages for this consultant
   const visibleMessages = db.prepare(`
@@ -252,7 +360,7 @@ async function handleChat(db, { symposium_id, consultant_id, message }) {
   });
 
   // Build context for OpenRouter
-  const context = buildContext(symposium, consultant, visibleMessages, message);
+  const context = buildContext(db, symposium, consultant, visibleMessages, message);
   
   // Get response from OpenRouter
   const response = await chatWithOpenRouter(consultant.model, context);
@@ -272,10 +380,265 @@ async function handleChat(db, { symposium_id, consultant_id, message }) {
   };
 }
 
-function buildContext(symposium, consultant, messages, userMessage) {
+async function handleAirtableChat(db, { symposium_id, consultant_id, message }) {
+  // Get consultant details
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
+  
+  // Create user message
+  const userMessage = createMessage(db, {
+    symposium_id,
+    consultant_id,
+    content: message,
+    is_user: true
+  });
+
+  try {
+    // Query Airtable using the service
+    const result = await airtableService.queryAirtable(consultant_id, message, consultant.model, chatWithOpenRouter);
+    
+    let response;
+    if (result.success) {
+      response = result.response;
+    } else {
+      response = result.error;
+    }
+
+    // Save assistant response
+    const assistantMessage = createMessage(db, {
+      symposium_id,
+      consultant_id,
+      content: response,
+      is_user: false
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
+      response,
+      airtableData: result.success ? result.data : null
+    };
+
+  } catch (error) {
+    console.error('Error in Airtable chat:', error);
+    const errorResponse = `I encountered an error while querying the database: ${error.message}`;
+    
+    const assistantMessage = createMessage(db, {
+      symposium_id,
+      consultant_id,
+      content: errorResponse,
+      is_user: false
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
+      response: errorResponse
+    };
+  }
+}
+
+// Airtable API handlers
+async function getAirtableConfig(consultantId) {
+  if (!consultantId) {
+    throw new Error('Consultant ID is required');
+  }
+  
+  const config = await airtableService.getAirtableConfig(consultantId);
+  if (config) {
+    // Don't return the API key for security
+    return {
+      consultant_id: config.consultant_id,
+      base_id: config.base_id,
+      table_name: config.table_name,
+      configured: true
+    };
+  }
+  
+  return { configured: false };
+}
+
+async function saveAirtableConfig({ consultant_id, base_id, api_key, table_name }) {
+  if (!consultant_id || !base_id || !api_key) {
+    throw new Error('Consultant ID, Base ID, and API Key are required');
+  }
+  
+  await airtableService.saveAirtableConfig(consultant_id, base_id, api_key, table_name);
+  return { success: true };
+}
+
+async function testAirtableConnection({ base_id, api_key, table_name }) {
+  if (!base_id || !api_key) {
+    throw new Error('Base ID and API Key are required');
+  }
+  
+  return await airtableService.testAirtableConnection(base_id, api_key, table_name);
+}
+
+async function getAirtableTables({ base_id, api_key }) {
+  if (!base_id || !api_key) {
+    throw new Error('Base ID and API Key are required');
+  }
+  
+  return await airtableService.getAvailableTables(base_id, api_key);
+}
+
+// Knowledge Base Card operations
+function getKnowledgeBaseCards(db, symposiumId) {
+  const stmt = db.prepare(`
+    SELECT kb.*, m.content as source_message_content, c.name as source_consultant_name
+    FROM knowledge_base_cards kb
+    LEFT JOIN messages m ON kb.source_message_id = m.id
+    LEFT JOIN consultants c ON m.consultant_id = c.id
+    WHERE kb.symposium_id = ?
+    ORDER BY kb.created_at DESC
+  `);
+  return stmt.all(symposiumId);
+}
+
+function createKnowledgeBaseCard(db, { symposium_id, title, content, card_type = 'user_created', source_message_id = null }) {
+  const stmt = db.prepare(`
+    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    RETURNING *
+  `);
+  return stmt.get(symposium_id, title, content, card_type, source_message_id);
+}
+
+function createCardFromMessage(db, { symposium_id, message_id, title }) {
+  // Get the message content
+  const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(message_id);
+  if (!message) {
+    throw new Error('Message not found');
+  }
+
+  // Create card with message content
+  const stmt = db.prepare(`
+    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, created_at, updated_at)
+    VALUES (?, ?, ?, 'consultant_response', ?, datetime('now'), datetime('now'))
+    RETURNING *
+  `);
+  return stmt.get(symposium_id, title, message.content, message_id);
+}
+
+function updateKnowledgeBaseCard(db, cardId, { title, content }) {
+  const stmt = db.prepare(`
+    UPDATE knowledge_base_cards 
+    SET title = ?, content = ?, updated_at = datetime('now')
+    WHERE id = ?
+    RETURNING *
+  `);
+  const result = stmt.get(title, content, cardId);
+  if (!result) {
+    throw new Error('Card not found');
+  }
+  return result;
+}
+
+function deleteKnowledgeBaseCard(db, cardId) {
+  const stmt = db.prepare("DELETE FROM knowledge_base_cards WHERE id = ?");
+  const result = stmt.run(cardId);
+  if (result.changes === 0) {
+    throw new Error('Card not found');
+  }
+  return { success: true };
+}
+
+function toggleCardVisibility(db, { card_id, is_visible }) {
+  const stmt = db.prepare(`
+    UPDATE knowledge_base_cards 
+    SET is_visible = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `);
+  const result = stmt.run(is_visible ? 1 : 0, card_id);
+  if (result.changes === 0) {
+    throw new Error('Card not found');
+  }
+  return { success: true };
+}
+
+// Message edit and delete operations
+function editMessage(db, messageId, { content }) {
+  if (!messageId || isNaN(messageId)) {
+    throw new Error('Valid message ID is required');
+  }
+  
+  if (!content || content.trim() === '') {
+    throw new Error('Message content is required');
+  }
+
+  // Check if message exists
+  const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(messageId);
+  if (!message) {
+    throw new Error('Message not found');
+  }
+
+  // Update the message content and set updated_at timestamp
+  const stmt = db.prepare(`
+    UPDATE messages 
+    SET content = ?, updated_at = datetime('now')
+    WHERE id = ?
+    RETURNING *
+  `);
+  const result = stmt.get(content.trim(), messageId);
+  
+  if (!result) {
+    throw new Error('Failed to update message');
+  }
+
+  return {
+    success: true,
+    message: result
+  };
+}
+
+function deleteMessage(db, messageId) {
+  if (!messageId || isNaN(messageId)) {
+    throw new Error('Valid message ID is required');
+  }
+
+  // Check if message exists
+  const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(messageId);
+  if (!message) {
+    throw new Error('Message not found');
+  }
+
+  // Delete message visibility records first (CASCADE should handle this, but being explicit)
+  const deleteVisibilityStmt = db.prepare("DELETE FROM message_visibility WHERE message_id = ?");
+  deleteVisibilityStmt.run(messageId);
+
+  // Delete the message (knowledge base cards will have their source_message_id set to NULL due to ON DELETE SET NULL)
+  const deleteMessageStmt = db.prepare("DELETE FROM messages WHERE id = ?");
+  const result = deleteMessageStmt.run(messageId);
+
+  if (result.changes === 0) {
+    throw new Error('Failed to delete message');
+  }
+
+  return {
+    success: true,
+    deletedMessage: message
+  };
+}
+
+function buildContext(db, symposium, consultant, messages, userMessage) {
   let context = `You are participating in a symposium called "${symposium.name}". `;
   context += `Symposium description: ${symposium.description}\n\n`;
   context += `Your role as a consultant: ${consultant.system_prompt}\n\n`;
+  
+  // Add knowledge base context
+  const knowledgeBaseCards = db.prepare(`
+    SELECT title, content FROM knowledge_base_cards 
+    WHERE symposium_id = ? AND is_visible = 1 
+    ORDER BY created_at
+  `).all(symposium.id);
+  
+  if (knowledgeBaseCards.length > 0) {
+    context += "Knowledge Base Context:\n";
+    knowledgeBaseCards.forEach(card => {
+      context += `${card.title}: ${card.content}\n`;
+    });
+    context += "\n";
+  }
   
   if (messages.length > 0) {
     context += "Previous conversation history:\n";
