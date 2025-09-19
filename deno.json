@@ -1,0 +1,9 @@
+{
+  "tasks": {
+    "start": "deno run --allow-all server.js",
+    "dev": "deno run --allow-all --watch server.js"
+  },
+  "imports": {
+    "std/": "https://deno.land/std@0.208.0/"
+  }
+}

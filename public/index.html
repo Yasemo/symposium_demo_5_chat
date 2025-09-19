@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Symposium - Dynamic Context Management</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="header-title">
+                    <h1>🎭 Symposium</h1>
+                    <p>Dynamic Context Management for LLM Consultations</p>
+                </div>
+                <div id="credit-display" class="credit-display">
+                    <div class="credit-info">
+                        <span class="credit-label">Credits:</span>
+                        <span class="credit-amount">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <!-- Symposium Section -->
+                <div class="section">
+                    <h3>Symposium</h3>
+                    <div id="symposium-selector" class="symposium-selector" style="display: none;">
+                        <select id="symposium-select">
+                            <option value="">Select a symposium...</option>
+                        </select>
+                    </div>
+                    <div id="symposium-info" class="symposium-info">
+                        <button id="create-symposium-btn" class="btn btn-primary">Create Symposium</button>
+                    </div>
+                </div>
+
+                <!-- Consultants Section -->
+                <div class="section">
+                    <h3>Consultants</h3>
+                    <div id="consultants-list" class="consultants-list">
+                        <p class="empty-state">Create a symposium first</p>
+                    </div>
+                    <button id="add-consultant-btn" class="btn btn-secondary" disabled>Add Consultant</button>
+                </div>
+
+                <!-- Active Consultant -->
+                <div class="section">
+                    <h3>Active Consultant</h3>
+                    <div id="active-consultant" class="active-consultant">
+                        <p class="empty-state">Select a consultant</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Chat Area -->
+            <div class="chat-container">
+                <div class="chat-header">
+                    <button id="clear-chat-btn" class="btn btn-secondary btn-small" disabled>🗑️ Clear Chat</button>
+                </div>
+                <div id="chat-messages" class="chat-messages">
+                    <div class="welcome-message">
+                        <h2>Welcome to Symposium</h2>
+                        <p>Create a symposium and add consultants to start your collaborative conversation.</p>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <div class="input-group">
+                        <textarea id="message-input" placeholder="Type your message..." rows="3" disabled></textarea>
+                        <button id="send-btn" class="btn btn-primary" disabled>Send</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Create Symposium Modal -->
+    <div id="symposium-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create Symposium</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="symposium-form">
+                    <div class="form-group">
+                        <label for="symposium-name">Symposium Name</label>
+                        <input type="text" id="symposium-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="symposium-description">Description</label>
+                        <textarea id="symposium-description" rows="4" required placeholder="Describe the goal and context of this symposium..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-symposium">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Consultant Modal -->
+    <div id="consultant-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Consultant</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="consultant-form">
+                    <div class="form-group">
+                        <label for="consultant-name">Consultant Name</label>
+                        <input type="text" id="consultant-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="consultant-model">LLM Model</label>
+                        <div class="model-search-container">
+                            <input type="text" id="model-search" placeholder="Search models..." class="model-search-input">
+                            <select id="consultant-model" required>
+                                <option value="">Loading models...</option>
+                            </select>
+                        </div>
+                        <div id="model-info" class="model-info"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="consultant-prompt">System Prompt</label>
+                        <textarea id="consultant-prompt" rows="4" required placeholder="Describe this consultant's role and expertise..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-consultant">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Consultant</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+        <p>Processing...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/lib/marked.umd.js"></script>
+    <script src="utils/api.js"></script>
+    <script src="components/symposium-manager.js"></script>
+    <script src="components/consultant-manager.js"></script>
+    <script src="components/chat-interface.js"></script>
+    <script src="components/message-manager.js"></script>
+    <script src="components/credit-manager.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
