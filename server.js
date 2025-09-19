@@ -4,9 +4,15 @@ import { DatabaseFactory, initDatabase } from "./database-factory.js";
 import { getOpenRouterModels, getOpenRouterAuth, chatWithOpenRouter } from "./openrouter.js";
 import { seedDatabase } from "./seed-data.js";
 import { AirtableService } from "./airtable-client.js";
+import { ConsultantFactory, ConsultantConfigManager, ConsultantTemplateManager } from "./consultants/consultant-factory.js";
 
 const db = await DatabaseFactory.create();
 await initDatabase(db);
+
+// Initialize consultant templates after database is created
+const templateManager = new ConsultantTemplateManager(db);
+await templateManager.seedDefaultTemplates();
+
 await seedDatabase(db);
 
 // Initialize Airtable service
@@ -139,6 +145,22 @@ async function handleApiRequest(req, url, db) {
       if (method === "POST") {
         const body = await req.json();
         return await getAirtableTables(body);
+      }
+      break;
+
+    case "/consultant-templates":
+      if (method === "GET") {
+        return await getConsultantTemplates(db);
+      }
+      break;
+
+    case "/consultant-config":
+      if (method === "GET") {
+        const consultantId = url.searchParams.get("consultant_id");
+        return await getConsultantConfig(db, consultantId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return await saveConsultantConfig(db, body);
       }
       break;
 
@@ -326,30 +348,14 @@ function clearMessages(db, { symposium_id }) {
   };
 }
 
-// Enhanced handleChat to support Airtable consultants
+// Unified handleChat using the new consultant framework
 async function handleChat(db, { symposium_id, consultant_id, message }) {
   // Get symposium details
   const symposium = db.prepare("SELECT * FROM symposiums WHERE id = ?").get(symposium_id);
   
   // Get consultant details
-  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
+  const consultantData = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
   
-  // Check if this is an Airtable consultant
-  if (consultant.consultant_type === 'airtable') {
-    return await handleAirtableChat(db, { symposium_id, consultant_id, message });
-  }
-  
-  // Get visible messages for this consultant
-  const visibleMessages = db.prepare(`
-    SELECT m.*, c.name as consultant_name
-    FROM messages m
-    LEFT JOIN consultants c ON m.consultant_id = c.id
-    LEFT JOIN message_visibility mv ON m.id = mv.message_id AND mv.consultant_id = ?
-    WHERE m.symposium_id = ? AND (mv.is_hidden IS NULL OR mv.is_hidden = 0)
-    ORDER BY m.timestamp
-    LIMIT 50
-  `).all(consultant_id, symposium_id);
-
   // Create user message
   const userMessage = createMessage(db, {
     symposium_id,
@@ -358,25 +364,58 @@ async function handleChat(db, { symposium_id, consultant_id, message }) {
     is_user: true
   });
 
-  // Build context for OpenRouter
-  const context = buildContext(db, symposium, consultant, visibleMessages, message);
-  
-  // Get response from OpenRouter
-  const response = await chatWithOpenRouter(consultant.model, context);
-  
-  // Save assistant response
-  const assistantMessage = createMessage(db, {
-    symposium_id,
-    consultant_id,
-    content: response,
-    is_user: false
-  });
+  try {
+    // Create consultant instance using the factory
+    const consultant = await ConsultantFactory.createConsultant(db, consultantData);
+    
+    // Get visible messages for context
+    const visibleMessages = db.prepare(`
+      SELECT m.*, c.name as consultant_name
+      FROM messages m
+      LEFT JOIN consultants c ON m.consultant_id = c.id
+      LEFT JOIN message_visibility mv ON m.id = mv.message_id AND mv.consultant_id = ?
+      WHERE m.symposium_id = ? AND (mv.is_hidden IS NULL OR mv.is_hidden = 0)
+      ORDER BY m.timestamp
+      LIMIT 50
+    `).all(consultant_id, symposium_id);
 
-  return {
-    userMessage,
-    assistantMessage,
-    response
-  };
+    // Build context
+    const context = buildContext(db, symposium, consultantData, visibleMessages, message);
+    
+    // Process message using the standardized consultant framework
+    const response = await consultant.processMessage(message, context);
+    
+    // Save assistant response
+    const assistantMessage = createMessage(db, {
+      symposium_id,
+      consultant_id,
+      content: response,
+      is_user: false
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
+      response
+    };
+
+  } catch (error) {
+    console.error('Error in unified chat handler:', error);
+    const errorResponse = `I encountered an error while processing your request: ${error.message}`;
+    
+    const assistantMessage = createMessage(db, {
+      symposium_id,
+      consultant_id,
+      content: errorResponse,
+      is_user: false
+    });
+
+    return {
+      userMessage,
+      assistantMessage,
+      response: errorResponse
+    };
+  }
 }
 
 async function handleAirtableChat(db, { symposium_id, consultant_id, message }) {
@@ -479,6 +518,44 @@ async function getAirtableTables({ base_id, api_key }) {
   }
   
   return await airtableService.getAvailableTables(base_id, api_key);
+}
+
+// Consultant Template and Configuration API handlers
+async function getConsultantTemplates(db) {
+  const templateManager = new ConsultantTemplateManager(db);
+  return await templateManager.getTemplates();
+}
+
+async function getConsultantConfig(db, consultantId) {
+  if (!consultantId) {
+    throw new Error('Consultant ID is required');
+  }
+  
+  const configManager = new ConsultantConfigManager(db);
+  const config = await configManager.getApiConfig(consultantId);
+  
+  if (config) {
+    // Don't return sensitive data, just indicate it's configured
+    return {
+      consultant_id: consultantId,
+      api_type: config.api_type,
+      configured: true,
+      config_fields: Object.keys(config.config)
+    };
+  }
+  
+  return { configured: false };
+}
+
+async function saveConsultantConfig(db, { consultant_id, api_type, config }) {
+  if (!consultant_id || !api_type || !config) {
+    throw new Error('Consultant ID, API type, and configuration are required');
+  }
+  
+  const configManager = new ConsultantConfigManager(db);
+  await configManager.saveApiConfig(consultant_id, api_type, config);
+  
+  return { success: true };
 }
 
 // Knowledge Base Card operations

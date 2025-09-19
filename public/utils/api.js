@@ -180,6 +180,23 @@ class API {
             body: data,
         });
     }
+
+    // Consultant Template endpoints
+    async getConsultantTemplates() {
+        return this.request('/consultant-templates');
+    }
+
+    // Consultant Configuration endpoints
+    async getConsultantConfig(consultantId) {
+        return this.request(`/consultant-config?consultant_id=${consultantId}`);
+    }
+
+    async saveConsultantConfig(data) {
+        return this.request('/consultant-config', {
+            method: 'POST',
+            body: data,
+        });
+    }
 }
 
 // Create global API instance

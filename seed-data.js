@@ -1,3 +1,5 @@
+import { ConsultantTemplateManager } from "./consultants/consultant-factory.js";
+
 // Seed data for demonstration purposes
 export async function seedDatabase(db) {
     console.log("Seeding database with example data...");

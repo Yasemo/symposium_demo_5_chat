@@ -9,7 +9,22 @@ export async function initDatabase(db) {
     )
   `);
 
-  // Create consultants table
+  // Create consultant templates table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS consultant_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      api_type TEXT NOT NULL,
+      default_system_prompt TEXT NOT NULL,
+      required_config_fields TEXT NOT NULL, -- JSON array of required fields
+      icon TEXT DEFAULT '🤖',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Create consultants table (enhanced)
   db.exec(`
     CREATE TABLE IF NOT EXISTS consultants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,24 +32,66 @@ export async function initDatabase(db) {
       name TEXT NOT NULL,
       model TEXT NOT NULL,
       system_prompt TEXT NOT NULL,
-      consultant_type TEXT DEFAULT 'standard',
+      template_id INTEGER,
+      consultant_type TEXT DEFAULT 'standard', -- kept for backward compatibility
       created_at TEXT NOT NULL,
-      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
+      FOREIGN KEY (template_id) REFERENCES consultant_templates (id) ON DELETE SET NULL
     )
   `);
+
+  // Add template_id column if it doesn't exist (migration)
+  try {
+    db.exec(`ALTER TABLE consultants ADD COLUMN template_id INTEGER REFERENCES consultant_templates(id) ON DELETE SET NULL`);
+    console.log("Added template_id column to existing consultants table");
+  } catch (error) {
+    if (!error.message.includes('duplicate column name')) {
+      console.error("Error adding template_id column:", error);
+    }
+  }
 
   // Add consultant_type column if it doesn't exist (migration)
   try {
     db.exec(`ALTER TABLE consultants ADD COLUMN consultant_type TEXT DEFAULT 'standard'`);
     console.log("Added consultant_type column to existing consultants table");
   } catch (error) {
-    // Column already exists, ignore the error
     if (!error.message.includes('duplicate column name')) {
       console.error("Error adding consultant_type column:", error);
     }
   }
 
-  // Create airtable configurations table
+  // Create external API configurations table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS external_api_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      consultant_id INTEGER NOT NULL,
+      api_type TEXT NOT NULL,
+      config_json TEXT NOT NULL, -- encrypted JSON configuration
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE CASCADE,
+      UNIQUE(consultant_id)
+    )
+  `);
+
+  // Create API interaction logs table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS api_interaction_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      consultant_id INTEGER NOT NULL,
+      api_type TEXT NOT NULL,
+      request_data TEXT, -- JSON
+      response_data TEXT, -- JSON
+      success INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      execution_time_ms INTEGER,
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Keep existing airtable_configs table for backward compatibility
   db.exec(`
     CREATE TABLE IF NOT EXISTS airtable_configs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,7 +125,6 @@ export async function initDatabase(db) {
     db.exec(`ALTER TABLE messages ADD COLUMN updated_at TEXT`);
     console.log("Added updated_at column to existing messages table");
   } catch (error) {
-    // Column already exists, ignore the error
     if (!error.message.includes('duplicate column name')) {
       console.error("Error adding updated_at column:", error);
     }

@@ -130,7 +130,28 @@ export async function initDatabase(db) {
     db.exec(symposiumsTable);
   }
 
-  // Create consultants table
+  // Create consultant templates table
+  const consultantTemplatesTable = `
+    CREATE TABLE IF NOT EXISTS consultant_templates (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      api_type TEXT NOT NULL,
+      default_system_prompt TEXT NOT NULL,
+      required_config_fields TEXT NOT NULL,
+      icon TEXT DEFAULT '🤖',
+      created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'}
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(consultantTemplatesTable);
+  } else {
+    db.exec(consultantTemplatesTable);
+  }
+
+  // Create consultants table (enhanced)
   const consultantsTable = `
     CREATE TABLE IF NOT EXISTS consultants (
       id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
@@ -138,9 +159,11 @@ export async function initDatabase(db) {
       name TEXT NOT NULL,
       model TEXT NOT NULL,
       system_prompt TEXT NOT NULL,
+      template_id INTEGER,
       consultant_type TEXT DEFAULT 'standard',
       created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL'},
-      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
+      FOREIGN KEY (template_id) REFERENCES consultant_templates (id) ON DELETE SET NULL
     )
   `;
   
@@ -160,7 +183,50 @@ export async function initDatabase(db) {
     }
   }
 
-  // Create airtable configurations table
+  // Create external API configurations table
+  const externalApiConfigsTable = `
+    CREATE TABLE IF NOT EXISTS external_api_configs (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      consultant_id INTEGER NOT NULL,
+      api_type TEXT NOT NULL,
+      config_json TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      updated_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE CASCADE,
+      UNIQUE(consultant_id)
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(externalApiConfigsTable);
+  } else {
+    db.exec(externalApiConfigsTable);
+  }
+
+  // Create API interaction logs table
+  const apiInteractionLogsTable = `
+    CREATE TABLE IF NOT EXISTS api_interaction_logs (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      consultant_id INTEGER NOT NULL,
+      api_type TEXT NOT NULL,
+      request_data TEXT,
+      response_data TEXT,
+      success INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT,
+      execution_time_ms INTEGER,
+      timestamp ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE CASCADE
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(apiInteractionLogsTable);
+  } else {
+    db.exec(apiInteractionLogsTable);
+  }
+
+  // Keep existing airtable_configs table for backward compatibility
   const airtableConfigsTable = `
     CREATE TABLE IF NOT EXISTS airtable_configs (
       id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
