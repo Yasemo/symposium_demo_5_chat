@@ -296,19 +296,20 @@ export async function initDatabase(db) {
     db.exec(messageVisibilityTable);
   }
 
-  // Create knowledge base cards table
+  // Create knowledge base cards table (now global, not symposium-specific)
   const knowledgeBaseTable = `
     CREATE TABLE IF NOT EXISTS knowledge_base_cards (
       id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
-      symposium_id INTEGER NOT NULL,
+      symposium_id INTEGER,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
       card_type TEXT NOT NULL DEFAULT 'user_created',
       source_message_id INTEGER,
       is_visible INTEGER NOT NULL DEFAULT 1,
+      is_global INTEGER NOT NULL DEFAULT 1,
       created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL'},
       updated_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL'},
-      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE SET NULL,
       FOREIGN KEY (source_message_id) REFERENCES messages (id) ON DELETE SET NULL
     )
   `;
@@ -317,6 +318,37 @@ export async function initDatabase(db) {
     await db.exec(knowledgeBaseTable);
   } else {
     db.exec(knowledgeBaseTable);
+    
+    // Add is_global column if it doesn't exist (SQLite migration)
+    try {
+      db.exec(`ALTER TABLE knowledge_base_cards ADD COLUMN is_global INTEGER NOT NULL DEFAULT 1`);
+      console.log("Added is_global column to existing knowledge_base_cards table");
+    } catch (error) {
+      if (!error.message.includes('duplicate column name')) {
+        console.error("Error adding is_global column:", error);
+      }
+    }
+  }
+
+  // Create symposium tasks table
+  const symposiumTasksTable = `
+    CREATE TABLE IF NOT EXISTS symposium_tasks (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      symposium_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      is_completed INTEGER NOT NULL DEFAULT 0,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      updated_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(symposiumTasksTable);
+  } else {
+    db.exec(symposiumTasksTable);
   }
 
   console.log(`Database initialized successfully (${db.type})`);

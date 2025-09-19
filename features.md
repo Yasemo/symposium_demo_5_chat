@@ -1,0 +1,1 @@
+1. Add word and token count for global system prompt

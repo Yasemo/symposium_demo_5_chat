@@ -75,19 +75,15 @@ class KnowledgeBase {
     }
 
     async onSymposiumChanged(symposium) {
-        if (symposium) {
-            await this.loadCards(symposium.id);
-            this.enableAddCard();
-        } else {
-            this.cards = [];
-            this.renderCards();
-            this.disableAddCard();
-        }
+        // Knowledge base is now global, so we always load all cards
+        await this.loadCards();
+        this.enableAddCard();
     }
 
-    async loadCards(symposiumId) {
+    async loadCards() {
         try {
-            this.cards = await api.getKnowledgeBaseCards(symposiumId);
+            // Load global knowledge base cards (no symposium_id needed)
+            this.cards = await api.getKnowledgeBaseCards();
             this.renderCards();
         } catch (error) {
             console.error('Error loading knowledge base cards:', error);

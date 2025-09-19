@@ -139,6 +139,11 @@ class SymposiumManager {
             this.setCurrentSymposium(symposium);
             this.hideCreateModal();
             
+            // Create any pending tasks from task generation
+            if (window.taskManager && window.taskManager.pendingTasks) {
+                await window.taskManager.createPendingTasks(symposium.id);
+            }
+            
             // Refresh the symposium list
             await this.loadSymposiums();
             

@@ -188,6 +188,30 @@ async function handleApiRequest(req, url, db) {
       }
       break;
 
+    case "/symposium-tasks":
+      if (method === "GET") {
+        const symposiumId = url.searchParams.get("symposium_id");
+        return getSymposiumTasks(db, symposiumId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return createSymposiumTask(db, body);
+      }
+      break;
+
+    case "/symposium-tasks/reorder":
+      if (method === "PUT") {
+        const body = await req.json();
+        return reorderSymposiumTasks(db, body);
+      }
+      break;
+
+    case "/generate-tasks":
+      if (method === "POST") {
+        const body = await req.json();
+        return generateTasksFromDescription(body);
+      }
+      break;
+
     default:
       // Handle consultant deletion with ID in path
       if (path.startsWith("/consultants/") && method === "DELETE") {
@@ -212,6 +236,16 @@ async function handleApiRequest(req, url, db) {
           return updateKnowledgeBaseCard(db, cardId, body);
         } else if (method === "DELETE") {
           return deleteKnowledgeBaseCard(db, cardId);
+        }
+      }
+      // Handle symposium task operations with ID in path
+      if (path.startsWith("/symposium-tasks/") && path.split("/").length === 3) {
+        const taskId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return updateSymposiumTask(db, taskId, body);
+        } else if (method === "DELETE") {
+          return deleteSymposiumTask(db, taskId);
         }
       }
       throw new Error("Not found");
@@ -558,23 +592,24 @@ async function saveConsultantConfig(db, { consultant_id, api_type, config }) {
   return { success: true };
 }
 
-// Knowledge Base Card operations
-function getKnowledgeBaseCards(db, symposiumId) {
+// Knowledge Base Card operations (now global)
+function getKnowledgeBaseCards(db, symposiumId = null) {
+  // Return global knowledge base cards
   const stmt = db.prepare(`
     SELECT kb.*, m.content as source_message_content, c.name as source_consultant_name
     FROM knowledge_base_cards kb
     LEFT JOIN messages m ON kb.source_message_id = m.id
     LEFT JOIN consultants c ON m.consultant_id = c.id
-    WHERE kb.symposium_id = ?
+    WHERE kb.is_global = 1
     ORDER BY kb.created_at DESC
   `);
-  return stmt.all(symposiumId);
+  return stmt.all();
 }
 
-function createKnowledgeBaseCard(db, { symposium_id, title, content, card_type = 'user_created', source_message_id = null }) {
+function createKnowledgeBaseCard(db, { symposium_id = null, title, content, card_type = 'user_created', source_message_id = null }) {
   const stmt = db.prepare(`
-    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, is_global, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
     RETURNING *
   `);
   return stmt.get(symposium_id, title, content, card_type, source_message_id);
@@ -699,14 +734,36 @@ function deleteMessage(db, messageId) {
 function buildContext(db, symposium, consultant, messages, userMessage) {
   let context = `You are participating in a symposium called "${symposium.name}". `;
   context += `Symposium description: ${symposium.description}\n\n`;
+  
+  // Add task progress context
+  const tasks = db.prepare(`
+    SELECT title, description, is_completed, order_index 
+    FROM symposium_tasks 
+    WHERE symposium_id = ? 
+    ORDER BY order_index
+  `).all(symposium.id);
+  
+  if (tasks.length > 0) {
+    context += "Mission Progress:\n";
+    tasks.forEach(task => {
+      const status = task.is_completed ? "[✓]" : "[ ]";
+      context += `${status} ${task.title}`;
+      if (task.description) {
+        context += ` - ${task.description}`;
+      }
+      context += "\n";
+    });
+    context += "\n";
+  }
+  
   context += `Your role as a consultant: ${consultant.system_prompt}\n\n`;
   
-  // Add knowledge base context
+  // Add global knowledge base context (now decoupled from symposiums)
   const knowledgeBaseCards = db.prepare(`
     SELECT title, content FROM knowledge_base_cards 
-    WHERE symposium_id = ? AND is_visible = 1 
+    WHERE is_visible = 1 AND is_global = 1
     ORDER BY created_at
-  `).all(symposium.id);
+  `).all();
   
   if (knowledgeBaseCards.length > 0) {
     context += "Knowledge Base Context:\n";
@@ -728,6 +785,232 @@ function buildContext(db, symposium, consultant, messages, userMessage) {
   context += `Current user message: ${userMessage}`;
   
   return context;
+}
+
+// Symposium Task operations
+function getSymposiumTasks(db, symposiumId) {
+  if (!symposiumId) {
+    throw new Error('Symposium ID is required');
+  }
+  
+  const stmt = db.prepare(`
+    SELECT * FROM symposium_tasks 
+    WHERE symposium_id = ? 
+    ORDER BY order_index, created_at
+  `);
+  return stmt.all(symposiumId);
+}
+
+function createSymposiumTask(db, { symposium_id, title, description = null, order_index = null }) {
+  if (!symposium_id || !title) {
+    throw new Error('Symposium ID and title are required');
+  }
+  
+  // If no order_index provided, get the next available index
+  if (order_index === null) {
+    const maxOrderStmt = db.prepare(`
+      SELECT COALESCE(MAX(order_index), -1) + 1 as next_order 
+      FROM symposium_tasks 
+      WHERE symposium_id = ?
+    `);
+    const result = maxOrderStmt.get(symposium_id);
+    order_index = result.next_order;
+  }
+  
+  const stmt = db.prepare(`
+    INSERT INTO symposium_tasks (symposium_id, title, description, order_index, created_at, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+    RETURNING *
+  `);
+  return stmt.get(symposium_id, title, description, order_index);
+}
+
+function updateSymposiumTask(db, taskId, { title, description, is_completed }) {
+  if (!taskId || isNaN(taskId)) {
+    throw new Error('Valid task ID is required');
+  }
+  
+  // Check if task exists
+  const task = db.prepare("SELECT * FROM symposium_tasks WHERE id = ?").get(taskId);
+  if (!task) {
+    throw new Error('Task not found');
+  }
+  
+  const stmt = db.prepare(`
+    UPDATE symposium_tasks 
+    SET title = COALESCE(?, title), 
+        description = COALESCE(?, description), 
+        is_completed = COALESCE(?, is_completed),
+        updated_at = datetime('now')
+    WHERE id = ?
+    RETURNING *
+  `);
+  
+  // Handle undefined values by passing null instead
+  const result = stmt.get(
+    title !== undefined ? title : null, 
+    description !== undefined ? description : null, 
+    is_completed !== undefined ? (is_completed ? 1 : 0) : null, 
+    taskId
+  );
+  
+  if (!result) {
+    throw new Error('Failed to update task');
+  }
+  
+  return {
+    success: true,
+    task: result
+  };
+}
+
+function deleteSymposiumTask(db, taskId) {
+  if (!taskId || isNaN(taskId)) {
+    throw new Error('Valid task ID is required');
+  }
+  
+  // Check if task exists
+  const task = db.prepare("SELECT * FROM symposium_tasks WHERE id = ?").get(taskId);
+  if (!task) {
+    throw new Error('Task not found');
+  }
+  
+  const stmt = db.prepare("DELETE FROM symposium_tasks WHERE id = ?");
+  const result = stmt.run(taskId);
+  
+  if (result.changes === 0) {
+    throw new Error('Failed to delete task');
+  }
+  
+  return {
+    success: true,
+    deletedTask: task
+  };
+}
+
+function reorderSymposiumTasks(db, { symposium_id, task_orders }) {
+  if (!symposium_id || !Array.isArray(task_orders)) {
+    throw new Error('Symposium ID and task orders array are required');
+  }
+  
+  // Update each task's order_index
+  const updateStmt = db.prepare(`
+    UPDATE symposium_tasks 
+    SET order_index = ?, updated_at = datetime('now')
+    WHERE id = ? AND symposium_id = ?
+  `);
+  
+  task_orders.forEach(({ task_id, order_index }) => {
+    updateStmt.run(order_index, task_id, symposium_id);
+  });
+  
+  return { success: true };
+}
+
+// Task generation using LLM
+async function generateTasksFromDescription({ description }) {
+  if (!description || description.trim() === '') {
+    throw new Error('Description is required for task generation');
+  }
+  
+  const prompt = `Based on the following symposium description, generate 5-8 specific, actionable tasks that would help accomplish the symposium's goals. Each task should be clear, measurable, and contribute to the overall mission.
+
+Symposium Description: "${description}"
+
+Please respond with a JSON array of tasks, where each task has a "title" (brief, actionable) and "description" (more detailed explanation). Format:
+
+[
+  {
+    "title": "Task title here",
+    "description": "Detailed description of what needs to be done"
+  }
+]
+
+Focus on creating tasks that are:
+- Specific and actionable
+- Logically ordered (if there are dependencies)
+- Realistic and achievable
+- Directly related to the symposium's purpose`;
+
+  try {
+    const response = await chatWithOpenRouter("openai/gpt-4o", prompt);
+    
+    // Try to parse the JSON response
+    let tasks;
+    try {
+      // Extract JSON from response if it's wrapped in markdown or other text
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : response;
+      tasks = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error('Failed to parse LLM response as JSON:', parseError);
+      // Fallback: create basic tasks from description
+      tasks = [
+        {
+          title: "Define project scope and objectives",
+          description: "Clearly outline what needs to be accomplished based on the symposium description"
+        },
+        {
+          title: "Research and gather information",
+          description: "Collect relevant data and insights related to the symposium topic"
+        },
+        {
+          title: "Develop action plan",
+          description: "Create a detailed plan for achieving the symposium goals"
+        },
+        {
+          title: "Execute primary activities",
+          description: "Carry out the main work required for the symposium"
+        },
+        {
+          title: "Review and refine outcomes",
+          description: "Evaluate results and make necessary improvements"
+        }
+      ];
+    }
+    
+    // Validate the tasks array
+    if (!Array.isArray(tasks)) {
+      throw new Error('Generated tasks must be an array');
+    }
+    
+    // Ensure each task has required fields
+    const validatedTasks = tasks.map((task, index) => ({
+      title: task.title || `Task ${index + 1}`,
+      description: task.description || 'No description provided'
+    }));
+    
+    return {
+      success: true,
+      tasks: validatedTasks
+    };
+    
+  } catch (error) {
+    console.error('Error generating tasks:', error);
+    return {
+      success: false,
+      error: error.message,
+      // Provide fallback tasks
+      tasks: [
+        {
+          title: "Plan and organize symposium activities",
+          description: "Develop a comprehensive plan for achieving the symposium objectives"
+        },
+        {
+          title: "Execute core symposium work",
+          description: "Carry out the primary activities needed to fulfill the symposium mission"
+        },
+        {
+          title: "Monitor progress and adjust",
+          description: "Track advancement and make necessary adjustments to stay on course"
+        },
+        {
+          title: "Complete and document outcomes",
+          description: "Finalize all work and document the results and learnings"
+        }
+      ]
+    };
+  }
 }
 
 console.log("Starting Symposium server on http://localhost:8000");

@@ -1614,3 +1614,339 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
+
+/* Task Management Styles */
+.task-progress-section {
+    margin-top: 1.5rem;
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.task-progress-header {
+    margin-bottom: 1rem;
+}
+
+.task-progress-header h4 {
+    color: #4f46e5;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.progress-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.progress-text {
+    font-size: 0.85rem;
+    color: #6b7280;
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4f46e5, #7c3aed);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.task-list {
+    margin-bottom: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.task-item {
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    cursor: grab;
+    position: relative;
+    background: white;
+    overflow: hidden;
+}
+
+.task-item:hover {
+    border-color: #e5e7eb;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.task-item.completed {
+    opacity: 0.7;
+}
+
+.task-item.completed .task-title {
+    text-decoration: line-through;
+    color: #6b7280;
+}
+
+.task-item.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    cursor: grabbing;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.task-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.task-header:hover {
+    background: #f8fafc;
+}
+
+.task-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #4f46e5;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.8rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.task-item.completed .task-number {
+    background: #6b7280;
+}
+
+.task-checkbox-container {
+    flex-shrink: 0;
+}
+
+.task-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4f46e5;
+}
+
+.task-title-container {
+    flex: 1;
+    min-width: 0;
+}
+
+.task-title {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.expand-indicator {
+    font-size: 0.7rem;
+    color: #6b7280;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.task-item.expanded .expand-indicator {
+    transform: rotate(180deg);
+}
+
+.task-expandable-content {
+    padding: 0 0.75rem 0.75rem 0.75rem;
+    max-height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    opacity: 0;
+}
+
+.task-item.expanded .task-expandable-content {
+    max-height: 200px;
+    opacity: 1;
+    padding-top: 0.5rem;
+}
+
+.task-description {
+    font-size: 0.8rem;
+    color: #6b7280;
+    line-height: 1.3;
+    margin-bottom: 0.75rem;
+    padding-left: 2.5rem;
+}
+
+.task-controls {
+    display: flex;
+    gap: 0.25rem;
+    justify-content: flex-end;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.task-item.expanded .task-controls,
+.task-item:hover .task-controls {
+    opacity: 1;
+}
+
+.task-control-btn {
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.task-control-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+    transform: scale(1.1);
+}
+
+.task-actions {
+    text-align: center;
+    padding-top: 0.5rem;
+    border-top: 1px solid #f3f4f6;
+}
+
+.description-actions {
+    margin-top: 0.5rem;
+    text-align: right;
+}
+
+/* Task Generation Modal Styles */
+.generated-tasks-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 1.5rem;
+}
+
+.generated-task-item {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.task-input-group {
+    margin-bottom: 0.75rem;
+}
+
+.task-input-group:last-of-type {
+    margin-bottom: 1rem;
+}
+
+.task-input-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.25rem;
+}
+
+.task-title-input,
+.task-description-input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+}
+
+.task-title-input:focus,
+.task-description-input:focus {
+    outline: none;
+    border-color: #4f46e5;
+}
+
+.remove-task-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: #dc2626;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.remove-task-btn:hover {
+    background: #b91c1c;
+    transform: scale(1.05);
+}
+
+/* Task Modal Styles */
+#task-modal .modal-content,
+#task-generation-modal .modal-content {
+    max-width: 600px;
+}
+
+#task-generation-modal .modal-content {
+    max-width: 700px;
+}
+
+/* Responsive Task Styles */
+@media (max-width: 768px) {
+    .task-item {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+    
+    .task-title {
+        font-size: 0.85rem;
+    }
+    
+    .task-description {
+        font-size: 0.75rem;
+    }
+    
+    .progress-indicator {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .progress-text {
+        min-width: auto;
+    }
+    
+    .generated-task-item {
+        padding: 0.75rem;
+    }
+    
+    .remove-task-btn {
+        position: static;
+        margin-top: 0.5rem;
+        width: 100%;
+    }
+}

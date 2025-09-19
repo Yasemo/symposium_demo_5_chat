@@ -143,20 +143,54 @@ export async function initDatabase(db) {
     )
   `);
 
-  // Create knowledge base cards table
+  // Create knowledge base cards table (now global, not symposium-specific)
   db.exec(`
     CREATE TABLE IF NOT EXISTS knowledge_base_cards (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      symposium_id INTEGER NOT NULL,
+      symposium_id INTEGER, -- Made optional for backward compatibility
       title TEXT NOT NULL,
       content TEXT NOT NULL,
       card_type TEXT NOT NULL DEFAULT 'user_created',
       source_message_id INTEGER,
       is_visible INTEGER NOT NULL DEFAULT 1,
+      is_global INTEGER NOT NULL DEFAULT 1, -- New field to mark global cards
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE SET NULL,
       FOREIGN KEY (source_message_id) REFERENCES messages (id) ON DELETE SET NULL
+    )
+  `);
+
+  // Add is_global column if it doesn't exist (migration)
+  try {
+    db.exec(`ALTER TABLE knowledge_base_cards ADD COLUMN is_global INTEGER NOT NULL DEFAULT 1`);
+    console.log("Added is_global column to existing knowledge_base_cards table");
+  } catch (error) {
+    if (!error.message.includes('duplicate column name')) {
+      console.error("Error adding is_global column:", error);
+    }
+  }
+
+  // Update existing knowledge base cards to be global
+  try {
+    db.exec(`UPDATE knowledge_base_cards SET is_global = 1 WHERE is_global IS NULL`);
+    console.log("Updated existing knowledge base cards to be global");
+  } catch (error) {
+    console.error("Error updating existing knowledge base cards:", error);
+  }
+
+  // Create symposium tasks table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS symposium_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      symposium_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      is_completed INTEGER NOT NULL DEFAULT 0,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE
     )
   `);
 

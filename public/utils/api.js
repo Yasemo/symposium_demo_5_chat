@@ -197,6 +197,45 @@ class API {
             body: data,
         });
     }
+
+    // Symposium Task endpoints
+    async getSymposiumTasks(symposiumId) {
+        return this.request(`/symposium-tasks?symposium_id=${symposiumId}`);
+    }
+
+    async createSymposiumTask(data) {
+        return this.request('/symposium-tasks', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async updateSymposiumTask(taskId, data) {
+        return this.request(`/symposium-tasks/${taskId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async deleteSymposiumTask(taskId) {
+        return this.request(`/symposium-tasks/${taskId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async reorderSymposiumTasks(data) {
+        return this.request('/symposium-tasks/reorder', {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async generateTasks(description) {
+        return this.request('/generate-tasks', {
+            method: 'POST',
+            body: { description },
+        });
+    }
 }
 
 // Create global API instance
