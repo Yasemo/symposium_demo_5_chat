@@ -1,12 +1,11 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { serveDir } from "https://deno.land/std@0.208.0/http/file_server.ts";
-import { Database } from "https://deno.land/x/sqlite3@0.11.1/mod.ts";
-import { initDatabase } from "./database.js";
+import { DatabaseFactory, initDatabase } from "./database-factory.js";
 import { getOpenRouterModels, getOpenRouterAuth, chatWithOpenRouter } from "./openrouter.js";
 import { seedDatabase } from "./seed-data.js";
 import { AirtableService } from "./airtable-client.js";
 
-const db = new Database("symposium.db");
+const db = await DatabaseFactory.create();
 await initDatabase(db);
 await seedDatabase(db);
 
@@ -71,30 +70,30 @@ async function handleApiRequest(req, url, db) {
 
     case "/symposiums":
       if (method === "GET") {
-        return getSymposiums(db);
+        return await getSymposiums(db);
       } else if (method === "POST") {
         const body = await req.json();
-        return createSymposium(db, body);
+        return await createSymposium(db, body);
       }
       break;
 
     case "/consultants":
       if (method === "GET") {
         const symposiumId = url.searchParams.get("symposium_id");
-        return getConsultants(db, symposiumId);
+        return await getConsultants(db, symposiumId);
       } else if (method === "POST") {
         const body = await req.json();
-        return createConsultant(db, body);
+        return await createConsultant(db, body);
       }
       break;
 
     case "/messages":
       if (method === "GET") {
         const symposiumId = url.searchParams.get("symposium_id");
-        return getMessages(db, symposiumId);
+        return await getMessages(db, symposiumId);
       } else if (method === "POST") {
         const body = await req.json();
-        return createMessage(db, body);
+        return await createMessage(db, body);
       }
       break;
 
@@ -198,44 +197,44 @@ async function handleApiRequest(req, url, db) {
 }
 
 // Database operations
-function getSymposiums(db) {
+async function getSymposiums(db) {
   const stmt = db.prepare("SELECT * FROM symposiums ORDER BY created_at DESC");
-  return stmt.all();
+  return await stmt.all();
 }
 
-function createSymposium(db, { name, description }) {
+async function createSymposium(db, { name, description }) {
   const stmt = db.prepare(
     "INSERT INTO symposiums (name, description, created_at) VALUES (?, ?, datetime('now')) RETURNING *"
   );
-  return stmt.get(name, description);
+  return await stmt.get(name, description);
 }
 
-function getConsultants(db, symposiumId) {
+async function getConsultants(db, symposiumId) {
   const stmt = db.prepare("SELECT * FROM consultants WHERE symposium_id = ? ORDER BY created_at");
-  return stmt.all(symposiumId);
+  return await stmt.all(symposiumId);
 }
 
-function createConsultant(db, { symposium_id, name, model, system_prompt, consultant_type = 'standard' }) {
+async function createConsultant(db, { symposium_id, name, model, system_prompt, consultant_type = 'standard' }) {
   const stmt = db.prepare(
     "INSERT INTO consultants (symposium_id, name, model, system_prompt, consultant_type, created_at) VALUES (?, ?, ?, ?, ?, datetime('now')) RETURNING *"
   );
-  return stmt.get(symposium_id, name, model, system_prompt, consultant_type);
+  return await stmt.get(symposium_id, name, model, system_prompt, consultant_type);
 }
 
-function deleteConsultant(db, consultantId) {
+async function deleteConsultant(db, consultantId) {
   if (!consultantId || isNaN(consultantId)) {
     throw new Error('Valid consultant ID is required');
   }
 
   // Check if consultant exists
-  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultantId);
+  const consultant = await db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultantId);
   if (!consultant) {
     throw new Error('Consultant not found');
   }
 
   // Delete the consultant (CASCADE will handle related records)
   const stmt = db.prepare("DELETE FROM consultants WHERE id = ?");
-  const result = stmt.run(consultantId);
+  const result = await stmt.run(consultantId);
 
   if (result.changes === 0) {
     throw new Error('Failed to delete consultant');

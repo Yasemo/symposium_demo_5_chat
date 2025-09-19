@@ -4,14 +4,14 @@ export async function seedDatabase(db) {
     
     try {
         // Check if data already exists
-        const existingSymposiums = db.prepare("SELECT COUNT(*) as count FROM symposiums").get();
+        const existingSymposiums = await db.prepare("SELECT COUNT(*) as count FROM symposiums").get();
         if (existingSymposiums.count > 0) {
             console.log("Database already has data, skipping seed.");
             return;
         }
 
         // Create example symposium
-        const symposium = db.prepare(`
+        const symposium = await db.prepare(`
             INSERT INTO symposiums (name, description, created_at) 
             VALUES (?, ?, datetime('now')) 
             RETURNING *
@@ -57,7 +57,7 @@ export async function seedDatabase(db) {
         ];
 
         for (const consultant of consultants) {
-            const createdConsultant = db.prepare(`
+            const createdConsultant = await db.prepare(`
                 INSERT INTO consultants (symposium_id, name, model, system_prompt, consultant_type, created_at) 
                 VALUES (?, ?, ?, ?, ?, datetime('now')) 
                 RETURNING *
@@ -67,7 +67,7 @@ export async function seedDatabase(db) {
         }
 
         // Create a welcome message
-        const welcomeMessage = db.prepare(`
+        const welcomeMessage = await db.prepare(`
             INSERT INTO messages (symposium_id, consultant_id, content, is_user, timestamp) 
             VALUES (?, ?, ?, ?, datetime('now')) 
             RETURNING *
