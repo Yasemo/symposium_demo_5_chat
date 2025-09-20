@@ -188,22 +188,6 @@ async function handleApiRequest(req, url, db) {
       }
       break;
 
-    case "/symposium-tasks":
-      if (method === "GET") {
-        const symposiumId = url.searchParams.get("symposium_id");
-        return getSymposiumTasks(db, symposiumId);
-      } else if (method === "POST") {
-        const body = await req.json();
-        return createSymposiumTask(db, body);
-      }
-      break;
-
-    case "/symposium-tasks/reorder":
-      if (method === "PUT") {
-        const body = await req.json();
-        return reorderSymposiumTasks(db, body);
-      }
-      break;
 
     case "/objectives":
       if (method === "GET") {
@@ -229,6 +213,13 @@ async function handleApiRequest(req, url, db) {
       if (method === "POST") {
         const body = await req.json();
         return generateSymposiumStructure(body);
+      }
+      break;
+
+    case "/regenerate-symposium-structure":
+      if (method === "POST") {
+        const body = await req.json();
+        return regenerateSymposiumStructure(body);
       }
       break;
 
@@ -270,16 +261,6 @@ async function handleApiRequest(req, url, db) {
           return deleteKnowledgeBaseCard(db, cardId);
         }
       }
-      // Handle symposium task operations with ID in path
-      if (path.startsWith("/symposium-tasks/") && path.split("/").length === 3) {
-        const taskId = path.split("/")[2];
-        if (method === "PUT") {
-          const body = await req.json();
-          return updateSymposiumTask(db, taskId, body);
-        } else if (method === "DELETE") {
-          return deleteSymposiumTask(db, taskId);
-        }
-      }
       // Handle objective task operations with ID in path
       if (path.startsWith("/objective-tasks/") && path.split("/").length === 3) {
         const taskId = path.split("/")[2];
@@ -294,6 +275,16 @@ async function handleApiRequest(req, url, db) {
       if (path === "/objective-tasks/reorder" && method === "PUT") {
         const body = await req.json();
         return reorderObjectiveTasks(db, body);
+      }
+      // Handle symposium operations with ID in path
+      if (path.startsWith("/symposiums/") && path.split("/").length === 3) {
+        const symposiumId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return updateSymposium(db, symposiumId, body);
+        } else if (method === "DELETE") {
+          return deleteSymposium(db, symposiumId);
+        }
       }
       throw new Error("Not found");
   }
@@ -310,6 +301,65 @@ async function createSymposium(db, { name, description }) {
     "INSERT INTO symposiums (name, description, created_at) VALUES (?, ?, datetime('now')) RETURNING *"
   );
   return await stmt.get(name, description);
+}
+
+async function updateSymposium(db, symposiumId, { name, description }) {
+  if (!symposiumId || isNaN(symposiumId)) {
+    throw new Error('Valid symposium ID is required');
+  }
+
+  if (!name || !description) {
+    throw new Error('Name and description are required');
+  }
+
+  // Check if symposium exists
+  const symposium = db.prepare("SELECT * FROM symposiums WHERE id = ?").get(symposiumId);
+  if (!symposium) {
+    throw new Error('Symposium not found');
+  }
+
+  // Update the symposium
+  const stmt = db.prepare(`
+    UPDATE symposiums 
+    SET name = ?, description = ?
+    WHERE id = ?
+    RETURNING *
+  `);
+  const result = stmt.get(name, description, symposiumId);
+
+  if (!result) {
+    throw new Error('Failed to update symposium');
+  }
+
+  return {
+    success: true,
+    symposium: result
+  };
+}
+
+async function deleteSymposium(db, symposiumId) {
+  if (!symposiumId || isNaN(symposiumId)) {
+    throw new Error('Valid symposium ID is required');
+  }
+
+  // Check if symposium exists
+  const symposium = db.prepare("SELECT * FROM symposiums WHERE id = ?").get(symposiumId);
+  if (!symposium) {
+    throw new Error('Symposium not found');
+  }
+
+  // Delete the symposium (CASCADE will handle related records)
+  const stmt = db.prepare("DELETE FROM symposiums WHERE id = ?");
+  const result = stmt.run(symposiumId);
+
+  if (result.changes === 0) {
+    throw new Error('Failed to delete symposium');
+  }
+
+  return {
+    success: true,
+    deletedSymposium: symposium
+  };
 }
 
 async function getConsultants(db, symposiumId) {
@@ -904,125 +954,6 @@ function buildContext(db, symposium, consultant, messages, userMessage, objectiv
   return context;
 }
 
-// Symposium Task operations
-function getSymposiumTasks(db, symposiumId) {
-  if (!symposiumId) {
-    throw new Error('Symposium ID is required');
-  }
-  
-  const stmt = db.prepare(`
-    SELECT * FROM symposium_tasks 
-    WHERE symposium_id = ? 
-    ORDER BY order_index, created_at
-  `);
-  return stmt.all(symposiumId);
-}
-
-function createSymposiumTask(db, { symposium_id, title, description = null, order_index = null }) {
-  if (!symposium_id || !title) {
-    throw new Error('Symposium ID and title are required');
-  }
-  
-  // If no order_index provided, get the next available index
-  if (order_index === null) {
-    const maxOrderStmt = db.prepare(`
-      SELECT COALESCE(MAX(order_index), -1) + 1 as next_order 
-      FROM symposium_tasks 
-      WHERE symposium_id = ?
-    `);
-    const result = maxOrderStmt.get(symposium_id);
-    order_index = result.next_order;
-  }
-  
-  const stmt = db.prepare(`
-    INSERT INTO symposium_tasks (symposium_id, title, description, order_index, created_at, updated_at)
-    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
-    RETURNING *
-  `);
-  return stmt.get(symposium_id, title, description, order_index);
-}
-
-function updateSymposiumTask(db, taskId, { title, description, is_completed }) {
-  if (!taskId || isNaN(taskId)) {
-    throw new Error('Valid task ID is required');
-  }
-  
-  // Check if task exists
-  const task = db.prepare("SELECT * FROM symposium_tasks WHERE id = ?").get(taskId);
-  if (!task) {
-    throw new Error('Task not found');
-  }
-  
-  const stmt = db.prepare(`
-    UPDATE symposium_tasks 
-    SET title = COALESCE(?, title), 
-        description = COALESCE(?, description), 
-        is_completed = COALESCE(?, is_completed),
-        updated_at = datetime('now')
-    WHERE id = ?
-    RETURNING *
-  `);
-  
-  // Handle undefined values by passing null instead
-  const result = stmt.get(
-    title !== undefined ? title : null, 
-    description !== undefined ? description : null, 
-    is_completed !== undefined ? (is_completed ? 1 : 0) : null, 
-    taskId
-  );
-  
-  if (!result) {
-    throw new Error('Failed to update task');
-  }
-  
-  return {
-    success: true,
-    task: result
-  };
-}
-
-function deleteSymposiumTask(db, taskId) {
-  if (!taskId || isNaN(taskId)) {
-    throw new Error('Valid task ID is required');
-  }
-  
-  // Check if task exists
-  const task = db.prepare("SELECT * FROM symposium_tasks WHERE id = ?").get(taskId);
-  if (!task) {
-    throw new Error('Task not found');
-  }
-  
-  const stmt = db.prepare("DELETE FROM symposium_tasks WHERE id = ?");
-  const result = stmt.run(taskId);
-  
-  if (result.changes === 0) {
-    throw new Error('Failed to delete task');
-  }
-  
-  return {
-    success: true,
-    deletedTask: task
-  };
-}
-
-function reorderSymposiumTasks(db, { symposium_id, task_orders }) {
-  if (!symposium_id || !Array.isArray(task_orders)) {
-    throw new Error('Symposium ID and task orders array are required');
-  }
-  
-  // Update each task's order_index
-  const updateStmt = db.prepare(`
-    UPDATE symposium_tasks 
-    SET order_index = ?, updated_at = datetime('now')
-    WHERE id = ? AND symposium_id = ?
-  `);
-  
-  task_orders.forEach(({ task_id, order_index }) => {
-    updateStmt.run(order_index, task_id, symposium_id);
-  });
-  
-  return { success: true };
-}
 
 // Objectives operations
 async function getObjectives(db, symposiumId) {
@@ -1171,22 +1102,29 @@ function reorderObjectiveTasks(db, { objective_id, task_orders }) {
   console.log('Reordering objective tasks:', { objective_id, task_orders });
   
   try {
-    // Update each task's order_index
-    const updateStmt = db.prepare(`
-      UPDATE objective_tasks 
-      SET order_index = ?, updated_at = datetime('now')
-      WHERE id = ? AND objective_id = ?
-    `);
-    
-    let updatedCount = 0;
-    task_orders.forEach(({ task_id, order_index }) => {
-      console.log(`Updating task ${task_id} to order_index ${order_index}`);
-      const result = updateStmt.run(order_index, task_id, objective_id);
-      console.log(`Update result:`, result);
-      updatedCount += result.changes;
+    // Use a transaction to ensure atomicity
+    const transaction = db.transaction(() => {
+      // Update each task's order_index
+      const updateStmt = db.prepare(`
+        UPDATE objective_tasks 
+        SET order_index = ?, updated_at = datetime('now')
+        WHERE id = ? AND objective_id = ?
+      `);
+      
+      let updatedCount = 0;
+      task_orders.forEach(({ task_id, order_index }) => {
+        console.log(`Updating task ${task_id} to order_index ${order_index}`);
+        const result = updateStmt.run(order_index, task_id, objective_id);
+        console.log(`Update result:`, result);
+        updatedCount += result.changes;
+      });
+      
+      console.log(`Total tasks updated: ${updatedCount}`);
+      return updatedCount;
     });
     
-    console.log(`Total tasks updated: ${updatedCount}`);
+    // Execute the transaction
+    const updatedCount = transaction();
     
     // Verify the changes by querying the database
     const verifyStmt = db.prepare(`
@@ -1206,8 +1144,104 @@ function reorderObjectiveTasks(db, { objective_id, task_orders }) {
   }
 }
 
+// Regenerate symposium structure with feedback
+async function regenerateSymposiumStructure({ description, current_structure, feedback, model = "openai/gpt-4o", iteration = 1 }) {
+  if (!description || description.trim() === '') {
+    throw new Error('Description is required for symposium structure regeneration');
+  }
+  
+  if (!feedback || feedback.trim() === '') {
+    throw new Error('Feedback is required for structure regeneration');
+  }
+  
+  const prompt = `You are helping refine a symposium structure based on user feedback. Here's the context:
+
+Original Description: "${description}"
+
+Current Structure:
+${JSON.stringify(current_structure, null, 2)}
+
+User Feedback: "${feedback}"
+
+This is iteration ${iteration} of refinement.
+
+Based on the feedback, please generate an improved structure with 3-5 distinct objectives that address the user's concerns. For each objective, provide 5-8 specific tasks.
+
+Please respond with a JSON object containing an "objectives" array, where each objective has:
+- title: Brief, clear objective name
+- description: Detailed explanation of what this objective aims to achieve
+- tasks: Array of 5-8 tasks, each with "title" and "description"
+
+Format:
+{
+  "objectives": [
+    {
+      "title": "Research & Analysis",
+      "description": "Gather and analyze relevant information to inform decision-making",
+      "tasks": [
+        {
+          "title": "Literature review",
+          "description": "Conduct comprehensive review of existing research and documentation"
+        }
+      ]
+    }
+  ]
+}
+
+Focus on:
+- Addressing the specific feedback provided
+- Creating objectives that are distinct and complementary
+- Ensuring tasks are actionable and realistic
+- Maintaining comprehensive coverage of the symposium scope`;
+
+  try {
+    const response = await chatWithOpenRouter(model, prompt);
+    
+    // Try to parse the JSON response
+    let structure;
+    try {
+      // Extract JSON from response if it's wrapped in markdown or other text
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : response;
+      structure = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error('Failed to parse LLM response as JSON:', parseError);
+      throw new Error('Failed to parse generated structure. Please try again.');
+    }
+    
+    // Validate the structure
+    if (!structure.objectives || !Array.isArray(structure.objectives)) {
+      throw new Error('Generated structure must contain an objectives array');
+    }
+    
+    // Ensure each objective has required fields and tasks
+    const validatedObjectives = structure.objectives.map((objective, objIndex) => ({
+      title: objective.title || `Objective ${objIndex + 1}`,
+      description: objective.description || 'No description provided',
+      tasks: Array.isArray(objective.tasks) ? objective.tasks.map((task, taskIndex) => ({
+        title: task.title || `Task ${taskIndex + 1}`,
+        description: task.description || 'No description provided'
+      })) : []
+    }));
+    
+    return {
+      success: true,
+      objectives: validatedObjectives,
+      iteration: iteration
+    };
+    
+  } catch (error) {
+    console.error('Error regenerating symposium structure:', error);
+    return {
+      success: false,
+      error: error.message,
+      iteration: iteration
+    };
+  }
+}
+
 // Generate symposium structure with multiple objectives
-async function generateSymposiumStructure({ description }) {
+async function generateSymposiumStructure({ description, model = "openai/gpt-4o" }) {
   if (!description || description.trim() === '') {
     throw new Error('Description is required for symposium structure generation');
   }

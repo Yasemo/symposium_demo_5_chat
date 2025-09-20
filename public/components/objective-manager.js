@@ -135,9 +135,9 @@ class ObjectiveManager {
                         <div class="objective-tasks" id="objective-tasks-list">
                             ${tasks.map((task, index) => `
                                 <div class="objective-task-item ${task.is_completed ? 'completed' : ''}" 
-                                     data-task-id="${task.id}" draggable="true">
+                                     data-task-id="${task.id}" data-order-index="${task.order_index || index}" draggable="true">
                                     <div class="task-header">
-                                        <div class="task-number">${index + 1}</div>
+                                        <div class="task-number">${(task.order_index !== undefined ? task.order_index : index) + 1}</div>
                                         <div class="task-checkbox-container">
                                             <input type="checkbox" class="objective-task-checkbox" 
                                                    ${task.is_completed ? 'checked' : ''} 
@@ -491,6 +491,9 @@ class ObjectiveManager {
             const movedTask = tasks.splice(fromIndex, 1)[0];
             tasks.splice(toIndex, 0, movedTask);
 
+            // Immediately update the UI with new task numbers
+            this.updateTaskNumbers(tasks);
+
             // Update order_index for all tasks
             const taskOrders = tasks.map((task, index) => ({
                 task_id: task.id,
@@ -503,8 +506,7 @@ class ObjectiveManager {
                 task_orders: taskOrders
             });
 
-            // Refresh display to show new order with updated numbers
-            await this.updateActiveObjective();
+            console.log('Task reordering completed successfully');
 
         } catch (error) {
             console.error('Error reordering objective tasks:', error);
@@ -512,6 +514,19 @@ class ObjectiveManager {
             // Refresh to restore original order
             await this.updateActiveObjective();
         }
+    }
+
+    updateTaskNumbers(tasks) {
+        // Update task numbers immediately in the UI
+        const taskItems = document.querySelectorAll('.objective-task-item');
+        taskItems.forEach((item, index) => {
+            const taskNumber = item.querySelector('.task-number');
+            if (taskNumber) {
+                taskNumber.textContent = index + 1;
+            }
+            // Update the data attribute as well
+            item.setAttribute('data-order-index', index);
+        });
     }
 
     truncateText(text, maxLength) {

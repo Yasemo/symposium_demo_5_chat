@@ -45,6 +45,19 @@ class API {
         });
     }
 
+    async updateSymposium(symposiumId, data) {
+        return this.request(`/symposiums/${symposiumId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async deleteSymposium(symposiumId) {
+        return this.request(`/symposiums/${symposiumId}`, {
+            method: 'DELETE',
+        });
+    }
+
     // Consultant endpoints
     async getConsultants(symposiumId) {
         return this.request(`/consultants?symposium_id=${symposiumId}`);
@@ -205,37 +218,6 @@ class API {
         });
     }
 
-    // Symposium Task endpoints
-    async getSymposiumTasks(symposiumId) {
-        return this.request(`/symposium-tasks?symposium_id=${symposiumId}`);
-    }
-
-    async createSymposiumTask(data) {
-        return this.request('/symposium-tasks', {
-            method: 'POST',
-            body: data,
-        });
-    }
-
-    async updateSymposiumTask(taskId, data) {
-        return this.request(`/symposium-tasks/${taskId}`, {
-            method: 'PUT',
-            body: data,
-        });
-    }
-
-    async deleteSymposiumTask(taskId) {
-        return this.request(`/symposium-tasks/${taskId}`, {
-            method: 'DELETE',
-        });
-    }
-
-    async reorderSymposiumTasks(data) {
-        return this.request('/symposium-tasks/reorder', {
-            method: 'PUT',
-            body: data,
-        });
-    }
 
     async generateTasks(description) {
         return this.request('/generate-tasks', {
@@ -289,10 +271,24 @@ class API {
     }
 
     // Generate symposium structure
-    async generateSymposiumStructure(description) {
+    async generateSymposiumStructure(description, model) {
         return this.request('/generate-symposium-structure', {
             method: 'POST',
-            body: { description },
+            body: { description, model },
+        });
+    }
+
+    // Regenerate symposium structure with feedback
+    async regenerateSymposiumStructure(description, currentStructure, feedback, model, iteration) {
+        return this.request('/regenerate-symposium-structure', {
+            method: 'POST',
+            body: { 
+                description, 
+                current_structure: currentStructure, 
+                feedback, 
+                model, 
+                iteration 
+            },
         });
     }
 }

@@ -141,6 +141,30 @@
     </div>
 
     <!-- Modals -->
+    <!-- Manage Symposiums Modal -->
+    <div id="manage-symposiums-modal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Manage Symposiums</h2>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="symposiums-list-container">
+                    <div class="symposiums-header">
+                        <h3>Existing Symposiums</h3>
+                        <button class="btn btn-primary btn-small" id="add-symposium-btn">+ Add Symposium</button>
+                    </div>
+                    <div id="symposiums-list" class="symposiums-list">
+                        <!-- Symposiums will be populated here -->
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="close-manage-symposiums">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Create Symposium Modal -->
     <div id="symposium-modal" class="modal">
         <div class="modal-content modal-large">
@@ -157,6 +181,21 @@
                     <div class="form-group">
                         <label for="symposium-description">Description</label>
                         <textarea id="symposium-description" rows="4" required placeholder="Describe the goal and context of this symposium..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="structure-model">LLM Model for Structure Generation</label>
+                        <div class="model-search-container">
+                            <input type="text" id="structure-model-search" placeholder="Search models..." class="model-search-input">
+                            <div id="structure-model-list-container" class="model-list-container">
+                                <div id="structure-model-list" class="model-list">
+                                    <!-- Models will be populated here -->
+                                </div>
+                            </div>
+                            <input type="hidden" id="structure-model" name="structure-model" required>
+                        </div>
+                        <div id="structure-model-info" class="model-info"></div>
+                    </div>
+                    <div class="form-group">
                         <div class="description-actions">
                             <button type="button" class="btn btn-secondary btn-small" id="generate-tasks-btn">🎯 Generate Structure</button>
                         </div>
@@ -168,6 +207,13 @@
                             <label>Generated Objectives & Tasks</label>
                             <div id="objectives-preview" class="objectives-preview">
                                 <!-- Generated objectives will be displayed here -->
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="structure-feedback">Feedback (optional)</label>
+                            <textarea id="structure-feedback" rows="3" placeholder="Provide feedback to refine the generated structure..."></textarea>
+                            <div class="feedback-actions">
+                                <button type="button" class="btn btn-secondary btn-small" id="regenerate-structure-btn">🔄 Regenerate with Feedback</button>
                             </div>
                         </div>
                     </div>
@@ -275,7 +321,6 @@
     <script src="components/credit-manager.js"></script>
     <script src="components/airtable-config.js"></script>
     <script src="components/knowledge-base.js"></script>
-    <script src="components/task-manager.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
