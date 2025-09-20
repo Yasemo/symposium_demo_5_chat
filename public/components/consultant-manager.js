@@ -18,43 +18,22 @@ class ConsultantManager {
     }
 
     bindEvents() {
-        // Add consultant button
-        document.getElementById('add-consultant-btn').addEventListener('click', () => {
+        // Manage consultants button (gear icon)
+        document.getElementById('manage-consultants-btn').addEventListener('click', () => {
             this.showCreateModal();
         });
 
-        // Modal events
+        // Modal events - bind to modal container only
         const modal = document.getElementById('consultant-modal');
         const closeBtn = modal.querySelector('.close-btn');
-        const cancelBtn = document.getElementById('cancel-consultant');
-        const form = document.getElementById('consultant-form');
-        const modelSelect = document.getElementById('consultant-model');
-        const modelSearch = document.getElementById('model-search');
 
         closeBtn.addEventListener('click', () => this.hideCreateModal());
-        cancelBtn.addEventListener('click', () => this.hideCreateModal());
-        
+
         // Close modal when clicking outside
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 this.hideCreateModal();
             }
-        });
-
-        // Model selection change
-        modelSelect.addEventListener('change', () => {
-            this.updateModelInfo();
-        });
-
-        // Model search functionality
-        modelSearch.addEventListener('input', (e) => {
-            this.filterModels(e.target.value);
-        });
-
-        // Form submission
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.createConsultant();
         });
     }
 
@@ -139,12 +118,12 @@ class ConsultantManager {
     async onSymposiumChanged(symposium) {
         if (symposium) {
             await this.loadConsultants(symposium.id);
-            document.getElementById('add-consultant-btn').disabled = false;
+            document.getElementById('manage-consultants-btn').disabled = false;
         } else {
             this.consultants = [];
             this.activeConsultant = null;
             this.updateUI();
-            document.getElementById('add-consultant-btn').disabled = true;
+            document.getElementById('manage-consultants-btn').disabled = true;
         }
     }
 
@@ -164,8 +143,266 @@ class ConsultantManager {
     }
 
     showCreateModal() {
-        // Show template selection first
-        this.showTemplateSelection();
+        // Check if we have consultants - if so, show management modal, otherwise show template selection
+        if (this.consultants.length > 0) {
+            this.showManagementModal();
+        } else {
+            this.showTemplateSelection();
+        }
+    }
+
+    showManagementModal() {
+        const modal = document.getElementById('consultant-modal');
+        const modalHeader = modal.querySelector('.modal-header h2');
+        const modalBody = modal.querySelector('.modal-body');
+        
+        modalHeader.textContent = 'Manage Consultants';
+        
+        modalBody.innerHTML = `
+            <div class="consultant-management">
+                <div class="management-header">
+                    <h3>Current Consultants</h3>
+                    <button class="btn btn-primary btn-small" id="add-new-consultant">+ Add New</button>
+                </div>
+                
+                <div class="consultants-management-list">
+                    ${this.consultants.map(consultant => `
+                        <div class="consultant-management-item" data-consultant-id="${consultant.id}">
+                            <div class="consultant-management-info">
+                                <div class="consultant-management-name">${consultant.name}</div>
+                                <div class="consultant-management-model">${consultant.model}</div>
+                                <div class="consultant-management-prompt">${consultant.system_prompt.substring(0, 100)}${consultant.system_prompt.length > 100 ? '...' : ''}</div>
+                            </div>
+                            <div class="consultant-management-actions">
+                                <button class="btn btn-secondary btn-small edit-consultant-btn" data-consultant-id="${consultant.id}">Edit</button>
+                                <button class="btn btn-secondary btn-small delete-consultant-btn" data-consultant-id="${consultant.id}">Delete</button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="close-management">Close</button>
+                </div>
+            </div>
+        `;
+        
+        modal.classList.add('active');
+        
+        // Bind management events
+        document.getElementById('add-new-consultant').addEventListener('click', () => {
+            this.showTemplateSelection();
+        });
+        
+        document.getElementById('close-management').addEventListener('click', () => {
+            this.hideCreateModal();
+        });
+        
+        // Bind edit buttons
+        modalBody.querySelectorAll('.edit-consultant-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const consultantId = parseInt(btn.dataset.consultantId);
+                const consultant = this.consultants.find(c => c.id === consultantId);
+                if (consultant) {
+                    this.showEditConsultantForm(consultant);
+                }
+            });
+        });
+        
+        // Bind delete buttons
+        modalBody.querySelectorAll('.delete-consultant-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const consultantId = parseInt(btn.dataset.consultantId);
+                const consultant = this.consultants.find(c => c.id === consultantId);
+                if (consultant) {
+                    this.showDeleteConfirmation(consultant);
+                }
+            });
+        });
+    }
+
+    showEditConsultantForm(consultant) {
+        const modal = document.getElementById('consultant-modal');
+        const modalHeader = modal.querySelector('.modal-header h2');
+        const modalBody = modal.querySelector('.modal-body');
+        
+        modalHeader.textContent = 'Edit Consultant';
+        
+        modalBody.innerHTML = `
+            <form id="edit-consultant-form">
+                <div class="form-group">
+                    <label for="edit-consultant-name">Consultant Name</label>
+                    <input type="text" id="edit-consultant-name" value="${consultant.name}" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-consultant-model">LLM Model</label>
+                    <div class="model-search-container">
+                        <input type="text" id="edit-model-search" placeholder="Search models..." class="model-search-input">
+                        <select id="edit-consultant-model" required>
+                            <option value="">Loading models...</option>
+                        </select>
+                    </div>
+                    <div id="edit-model-info" class="model-info"></div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-consultant-prompt">System Prompt</label>
+                    <textarea id="edit-consultant-prompt" rows="6" required>${consultant.system_prompt}</textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="back-to-management">← Back</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-edit">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        `;
+        
+        // Bind edit form events
+        this.bindEditFormEvents(consultant);
+        this.populateEditModelSelect(consultant.model);
+        
+        // Focus on the name input
+        setTimeout(() => {
+            document.getElementById('edit-consultant-name').focus();
+        }, 100);
+    }
+
+    bindEditFormEvents(consultant) {
+        const form = document.getElementById('edit-consultant-form');
+        const cancelBtn = document.getElementById('cancel-edit');
+        const backBtn = document.getElementById('back-to-management');
+        const modelSelect = document.getElementById('edit-consultant-model');
+        const modelSearch = document.getElementById('edit-model-search');
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.updateConsultant(consultant);
+        });
+
+        cancelBtn.addEventListener('click', () => this.hideCreateModal());
+        backBtn.addEventListener('click', () => this.showManagementModal());
+
+        modelSelect.addEventListener('change', () => this.updateEditModelInfo());
+        modelSearch.addEventListener('input', (e) => this.filterEditModels(e.target.value));
+    }
+
+    populateEditModelSelect(selectedModel, filteredModels = null) {
+        const select = document.getElementById('edit-consultant-model');
+        const modelsToShow = filteredModels || this.availableModels;
+        
+        select.innerHTML = '<option value="">Select a model...</option>';
+        
+        modelsToShow.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.textContent = model.name;
+            option.dataset.model = JSON.stringify(model);
+            if (model.id === selectedModel) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+        
+        // Update model info for the selected model
+        if (selectedModel) {
+            this.updateEditModelInfo();
+        }
+    }
+
+    filterEditModels(searchTerm) {
+        const consultant = this.consultants.find(c => c.id === parseInt(document.getElementById('edit-consultant-form').dataset.consultantId));
+        const selectedModel = consultant ? consultant.model : null;
+        
+        if (!searchTerm.trim()) {
+            this.populateEditModelSelect(selectedModel);
+            return;
+        }
+
+        const filtered = this.availableModels.filter(model => {
+            const searchLower = searchTerm.toLowerCase();
+            return (
+                model.name.toLowerCase().includes(searchLower) ||
+                model.id.toLowerCase().includes(searchLower) ||
+                (model.description && model.description.toLowerCase().includes(searchLower))
+            );
+        });
+
+        this.populateEditModelSelect(selectedModel, filtered);
+    }
+
+    updateEditModelInfo() {
+        const select = document.getElementById('edit-consultant-model');
+        const infoDiv = document.getElementById('edit-model-info');
+        
+        if (!select.value) {
+            infoDiv.innerHTML = '';
+            return;
+        }
+
+        const modelData = JSON.parse(select.selectedOptions[0].dataset.model);
+        
+        infoDiv.innerHTML = `
+            <div>
+                <strong>${modelData.name}</strong>
+                ${modelData.description ? `<p>${modelData.description}</p>` : ''}
+                <div class="model-pricing">
+                    <div class="pricing-item">
+                        <div class="pricing-label">Input</div>
+                        <div class="pricing-value">${utils.formatPrice(modelData.pricing.prompt)}</div>
+                    </div>
+                    <div class="pricing-item">
+                        <div class="pricing-label">Output</div>
+                        <div class="pricing-value">${utils.formatPrice(modelData.pricing.completion)}</div>
+                    </div>
+                    <div class="pricing-item">
+                        <div class="pricing-label">Context</div>
+                        <div class="pricing-value">${modelData.context_length.toLocaleString()}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    async updateConsultant(consultant) {
+        const name = document.getElementById('edit-consultant-name').value.trim();
+        const model = document.getElementById('edit-consultant-model').value;
+        const systemPrompt = document.getElementById('edit-consultant-prompt').value.trim();
+
+        if (!name || !model || !systemPrompt) {
+            utils.showError('Please fill in all fields');
+            return;
+        }
+
+        try {
+            utils.showLoading();
+            
+            // Update consultant via API (we'll need to add this endpoint)
+            const updatedConsultant = await api.updateConsultant(consultant.id, {
+                name,
+                model,
+                system_prompt: systemPrompt
+            });
+
+            // Update local consultant data
+            const index = this.consultants.findIndex(c => c.id === consultant.id);
+            if (index !== -1) {
+                this.consultants[index] = { ...this.consultants[index], name, model, system_prompt: systemPrompt };
+            }
+
+            // Update active consultant if it's the one being edited
+            if (this.activeConsultant && this.activeConsultant.id === consultant.id) {
+                this.activeConsultant = this.consultants[index];
+            }
+
+            this.updateUI();
+            this.hideCreateModal();
+            utils.showSuccess('Consultant updated successfully!');
+            
+        } catch (error) {
+            console.error('Error updating consultant:', error);
+            utils.showError('Failed to update consultant');
+        } finally {
+            utils.hideLoading();
+        }
     }
 
     showTemplateSelection() {
@@ -714,77 +951,55 @@ class ConsultantManager {
     }
 
     updateUI() {
-        this.updateConsultantsList();
-        this.updateActiveConsultant();
+        this.renderConsultantTabs();
     }
 
-    updateConsultantsList() {
-        const listContainer = document.getElementById('consultants-list');
+    renderConsultantTabs() {
+        const tabsContainer = document.getElementById('consultant-tabs');
         
         if (this.consultants.length === 0) {
-            listContainer.innerHTML = '<p class="empty-state">No consultants yet</p>';
+            tabsContainer.innerHTML = `
+                <div class="consultant-tabs-empty">
+                    <button class="add-first-consultant-btn" onclick="consultantManager.showCreateModal()">
+                        + Add Your First Consultant
+                    </button>
+                </div>
+            `;
             return;
         }
 
-        listContainer.innerHTML = this.consultants.map(consultant => `
-            <div class="consultant-item ${this.activeConsultant?.id === consultant.id ? 'active' : ''}" 
-                 data-consultant-id="${consultant.id}">
-                <div class="consultant-info">
-                    <div class="consultant-name">${consultant.name}</div>
-                    <div class="consultant-model">${consultant.model}</div>
-                </div>
-                <button class="delete-consultant-btn" data-consultant-id="${consultant.id}" title="Delete consultant">
-                    🗑️
-                </button>
-            </div>
-        `).join('');
+        tabsContainer.innerHTML = this.consultants.map((consultant, index) => {
+            const isActive = this.activeConsultant?.id === consultant.id;
+            const modelShort = consultant.model.split('/').pop().split('-').slice(0, 2).join('-');
+            const consultantIcon = consultant.name.charAt(0).toUpperCase();
+            const colorClass = `consultant-${(index % 10) + 1}`;
 
-        // Bind click events for consultant selection
-        listContainer.querySelectorAll('.consultant-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                // Don't select if clicking the delete button
-                if (e.target.classList.contains('delete-consultant-btn')) {
-                    return;
-                }
-                
-                const consultantId = parseInt(item.dataset.consultantId);
+            return `
+                <div class="consultant-tab ${isActive ? 'active expanded' : 'collapsed'}"
+                     data-consultant-id="${consultant.id}"
+                     data-consultant-name="${consultant.name}"
+                     data-consultant-model="${consultant.model}"
+                     title="${consultant.name} - ${consultant.model}">
+                    <div class="consultant-tab-icon ${colorClass}">${consultantIcon}</div>
+                    <div class="consultant-tab-name">${consultant.name}</div>
+                    <div class="consultant-tab-model">${modelShort}</div>
+                </div>
+            `;
+        }).join('');
+
+        // Bind click events for tab selection
+        tabsContainer.querySelectorAll('.consultant-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const consultantId = parseInt(tab.dataset.consultantId);
                 const consultant = this.consultants.find(c => c.id === consultantId);
                 if (consultant) {
                     this.setActiveConsultant(consultant);
                 }
             });
+
+            // Add expand/collapse functionality
+            this.addTabExpandCollapseLogic(tab);
         });
-
-        // Bind delete button events
-        listContainer.querySelectorAll('.delete-consultant-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent consultant selection
-                const consultantId = parseInt(btn.dataset.consultantId);
-                const consultant = this.consultants.find(c => c.id === consultantId);
-                if (consultant) {
-                    this.showDeleteConfirmation(consultant);
-                }
-            });
-        });
-    }
-
-    updateActiveConsultant() {
-        const container = document.getElementById('active-consultant');
-        
-        if (!this.activeConsultant) {
-            container.innerHTML = '<p class="empty-state">Select a consultant</p>';
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="consultant-details">
-                <h4>${this.activeConsultant.name}</h4>
-                <div class="consultant-model">${this.activeConsultant.model}</div>
-                <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #6b7280;">
-                    ${this.activeConsultant.system_prompt}
-                </p>
-            </div>
-        `;
     }
 
     getActiveConsultant() {
@@ -841,6 +1056,84 @@ class ConsultantManager {
 
     getConsultants() {
         return this.consultants;
+    }
+
+    addTabExpandCollapseLogic(tab) {
+        const consultantId = parseInt(tab.dataset.consultantId);
+        const isActive = this.activeConsultant?.id === consultantId;
+
+        // Don't add expand/collapse logic to active tabs - they stay expanded
+        if (isActive) {
+            return;
+        }
+
+        let expandTimeout;
+
+        // Expand on hover (with slight delay for better UX)
+        tab.addEventListener('mouseenter', () => {
+            clearTimeout(expandTimeout);
+            expandTimeout = setTimeout(() => {
+                this.expandTab(tab);
+            }, 150); // Small delay to prevent flickering
+        });
+
+        // Collapse on mouse leave (with delay to allow for smooth interaction)
+        tab.addEventListener('mouseleave', () => {
+            clearTimeout(expandTimeout);
+            setTimeout(() => {
+                this.collapseTab(tab);
+            }, 300); // Longer delay to allow user to move to expanded content
+        });
+
+        // Also expand on click for accessibility and mobile
+        tab.addEventListener('click', (e) => {
+            // Only handle expand/collapse click if not clicking to select consultant
+            if (e.detail === 1) { // Single click
+                clearTimeout(expandTimeout);
+                if (tab.classList.contains('collapsed')) {
+                    this.expandTab(tab);
+                } else {
+                    this.collapseTab(tab);
+                }
+            }
+        });
+
+        // Handle touch events for mobile
+        tab.addEventListener('touchstart', () => {
+            clearTimeout(expandTimeout);
+            if (tab.classList.contains('collapsed')) {
+                this.expandTab(tab);
+            }
+        });
+
+        // Collapse on touch end if it was a quick tap
+        tab.addEventListener('touchend', () => {
+            setTimeout(() => {
+                this.collapseTab(tab);
+            }, 1000); // Keep expanded for 1 second on mobile
+        });
+    }
+
+    expandTab(tab) {
+        // Collapse all other tabs first
+        document.querySelectorAll('.consultant-tab.collapsed').forEach(otherTab => {
+            this.collapseTab(otherTab);
+        });
+
+        // Expand this tab
+        tab.classList.remove('collapsed');
+        tab.classList.add('expanded');
+    }
+
+    collapseTab(tab) {
+        // Don't collapse active tabs
+        const consultantId = parseInt(tab.dataset.consultantId);
+        const isActive = this.activeConsultant?.id === consultantId;
+
+        if (!isActive) {
+            tab.classList.remove('expanded');
+            tab.classList.add('collapsed');
+        }
     }
 }
 

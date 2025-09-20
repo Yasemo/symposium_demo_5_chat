@@ -240,10 +240,15 @@ async function handleApiRequest(req, url, db) {
       break;
 
     default:
-      // Handle consultant deletion with ID in path
-      if (path.startsWith("/consultants/") && method === "DELETE") {
+      // Handle consultant operations with ID in path
+      if (path.startsWith("/consultants/") && path.split("/").length === 3) {
         const consultantId = path.split("/")[2];
-        return deleteConsultant(db, consultantId);
+        if (method === "DELETE") {
+          return deleteConsultant(db, consultantId);
+        } else if (method === "PUT") {
+          const body = await req.json();
+          return updateConsultant(db, consultantId, body);
+        }
       }
       // Handle message operations with ID in path
       if (path.startsWith("/messages/") && path.split("/").length === 3) {
@@ -317,6 +322,40 @@ async function createConsultant(db, { symposium_id, name, model, system_prompt, 
     "INSERT INTO consultants (symposium_id, name, model, system_prompt, consultant_type, created_at) VALUES (?, ?, ?, ?, ?, datetime('now')) RETURNING *"
   );
   return await stmt.get(symposium_id, name, model, system_prompt, consultant_type);
+}
+
+async function updateConsultant(db, consultantId, { name, model, system_prompt }) {
+  if (!consultantId || isNaN(consultantId)) {
+    throw new Error('Valid consultant ID is required');
+  }
+
+  if (!name || !model || !system_prompt) {
+    throw new Error('Name, model, and system prompt are required');
+  }
+
+  // Check if consultant exists
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultantId);
+  if (!consultant) {
+    throw new Error('Consultant not found');
+  }
+
+  // Update the consultant
+  const stmt = db.prepare(`
+    UPDATE consultants 
+    SET name = ?, model = ?, system_prompt = ?
+    WHERE id = ?
+    RETURNING *
+  `);
+  const result = stmt.get(name, model, system_prompt, consultantId);
+
+  if (!result) {
+    throw new Error('Failed to update consultant');
+  }
+
+  return {
+    success: true,
+    consultant: result
+  };
 }
 
 async function deleteConsultant(db, consultantId) {

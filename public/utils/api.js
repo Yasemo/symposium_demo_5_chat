@@ -63,6 +63,13 @@ class API {
         });
     }
 
+    async updateConsultant(consultantId, data) {
+        return this.request(`/consultants/${consultantId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
     // Message endpoints
     async getMessages(symposiumId) {
         return this.request(`/messages?symposium_id=${symposiumId}`);

@@ -28,6 +28,14 @@
         <main class="main-content">
             <!-- Sidebar -->
             <aside class="sidebar">
+                <!-- Sidebar Header with Collapse Button -->
+                <div class="sidebar-header">
+                    <h2>Navigation</h2>
+                    <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="Collapse Sidebar">
+                        <span class="collapse-icon">◀</span>
+                    </button>
+                </div>
+
                 <!-- Symposium Section -->
                 <div class="section collapsible">
                     <div class="section-header" data-section="symposium">
@@ -78,36 +86,6 @@
                     </div>
                 </div>
 
-                <!-- Consultants Section -->
-                <div class="section collapsible">
-                    <div class="section-header" data-section="consultants">
-                        <h3>Consultants</h3>
-                        <button class="collapse-toggle" aria-label="Toggle section">
-                            <span class="collapse-icon">▼</span>
-                        </button>
-                    </div>
-                    <div class="section-content" id="consultants-content">
-                        <div id="consultants-list" class="consultants-list">
-                            <p class="empty-state">Create a symposium first</p>
-                        </div>
-                        <button id="add-consultant-btn" class="btn btn-secondary" disabled>Add Consultant</button>
-                    </div>
-                </div>
-
-                <!-- Active Consultant -->
-                <div class="section collapsible">
-                    <div class="section-header" data-section="active-consultant">
-                        <h3>Active Consultant</h3>
-                        <button class="collapse-toggle" aria-label="Toggle section">
-                            <span class="collapse-icon">▼</span>
-                        </button>
-                    </div>
-                    <div class="section-content" id="active-consultant-content">
-                        <div id="active-consultant" class="active-consultant">
-                            <p class="empty-state">Select a consultant</p>
-                        </div>
-                    </div>
-                </div>
             </aside>
 
             <!-- Chat Area -->
@@ -123,8 +101,19 @@
                 </div>
 
                 <div class="chat-input-container">
-                    <div class="input-group">
-                        <textarea id="message-input" placeholder="Type your message..." rows="3" disabled></textarea>
+                    <!-- Consultant Tabs -->
+                    <div class="consultant-tabs-container">
+                        <div class="consultant-tabs" id="consultant-tabs">
+                            <!-- Tabs will be dynamically generated -->
+                        </div>
+                        <button class="manage-consultants-btn" id="manage-consultants-btn" title="Manage Consultants" disabled>
+                            ⚙️
+                        </button>
+                    </div>
+                    
+                    <!-- Message Input -->
+                    <div class="message-input-wrapper">
+                        <textarea id="message-input" placeholder="Create a symposium and add consultants to start chatting..." rows="3" disabled></textarea>
                         <button id="send-btn" class="btn btn-primary" disabled>Send</button>
                     </div>
                 </div>
@@ -134,7 +123,12 @@
             <aside class="knowledge-base">
                 <div class="knowledge-base-header">
                     <h3>Knowledge Base</h3>
-                    <button id="add-card-btn" class="btn btn-secondary btn-small" disabled>+ Add Card</button>
+                    <div class="knowledge-base-controls">
+                        <button id="add-card-btn" class="btn btn-secondary btn-small" disabled>+ Add Card</button>
+                        <button class="knowledge-base-collapse-btn" id="knowledge-base-collapse-btn" title="Collapse Knowledge Base">
+                            <span class="collapse-icon">▶</span>
+                        </button>
+                    </div>
                 </div>
                 <div id="knowledge-base-cards" class="knowledge-base-cards">
                     <div class="empty-state">
@@ -275,6 +269,7 @@
     <script src="components/symposium-manager.js"></script>
     <script src="components/objective-manager.js"></script>
     <script src="components/consultant-manager.js"></script>
+    <script src="components/panel-collapse-manager.js"></script>
     <script src="components/chat-interface.js"></script>
     <script src="components/message-manager.js"></script>
     <script src="components/credit-manager.js"></script>
