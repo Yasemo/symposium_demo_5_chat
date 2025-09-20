@@ -111,12 +111,14 @@ export async function initDatabase(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       symposium_id INTEGER NOT NULL,
       consultant_id INTEGER,
+      objective_id INTEGER,
       content TEXT NOT NULL,
       is_user INTEGER NOT NULL DEFAULT 0,
       timestamp TEXT NOT NULL,
       updated_at TEXT,
       FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
-      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE SET NULL
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE SET NULL,
+      FOREIGN KEY (objective_id) REFERENCES objectives (id) ON DELETE CASCADE
     )
   `);
 
@@ -127,6 +129,16 @@ export async function initDatabase(db) {
   } catch (error) {
     if (!error.message.includes('duplicate column name')) {
       console.error("Error adding updated_at column:", error);
+    }
+  }
+
+  // Add objective_id column if it doesn't exist (migration)
+  try {
+    db.exec(`ALTER TABLE messages ADD COLUMN objective_id INTEGER REFERENCES objectives(id) ON DELETE CASCADE`);
+    console.log("Added objective_id column to existing messages table");
+  } catch (error) {
+    if (!error.message.includes('duplicate column name')) {
+      console.error("Error adding objective_id column:", error);
     }
   }
 
@@ -179,18 +191,32 @@ export async function initDatabase(db) {
     console.error("Error updating existing knowledge base cards:", error);
   }
 
-  // Create symposium tasks table
+  // Create objectives table
   db.exec(`
-    CREATE TABLE IF NOT EXISTS symposium_tasks (
+    CREATE TABLE IF NOT EXISTS objectives (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       symposium_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      order_index INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create objective tasks table (replaces symposium_tasks)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS objective_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      objective_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
       is_completed INTEGER NOT NULL DEFAULT 0,
       order_index INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE
+      FOREIGN KEY (objective_id) REFERENCES objectives (id) ON DELETE CASCADE
     )
   `);
 

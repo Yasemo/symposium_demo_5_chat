@@ -1790,7 +1790,6 @@ body {
     color: #6b7280;
     line-height: 1.3;
     margin-bottom: 0.75rem;
-    padding-left: 2.5rem;
 }
 
 .task-controls {
@@ -1948,5 +1947,421 @@ body {
         position: static;
         margin-top: 0.5rem;
         width: 100%;
+    }
+}
+
+/* Objectives List Styles */
+.objectives-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.objective-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem;
+    background: white;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.objective-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: #e5e7eb;
+}
+
+.objective-item.active {
+    border-color: #4f46e5;
+    background: #f0f9ff;
+}
+
+.objective-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.objective-title {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 0.9rem;
+}
+
+.objective-description {
+    font-size: 0.8rem;
+    color: #6b7280;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Active Objective Styles */
+.active-objective {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.objective-details h4 {
+    color: #4f46e5;
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.objective-details p {
+    color: #6b7280;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Responsive Objectives */
+@media (max-width: 768px) {
+    .objectives-list {
+        max-height: 200px;
+    }
+    
+    .objective-item {
+        padding: 0.5rem;
+    }
+    
+    .objective-title {
+        font-size: 0.85rem;
+    }
+    
+    .objective-description {
+        font-size: 0.75rem;
+    }
+}
+
+/* Structure Preview Styles */
+.structure-preview {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e5e7eb;
+}
+
+.objectives-preview {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.preview-objective {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.preview-objective:last-child {
+    margin-bottom: 0;
+}
+
+.preview-objective-header {
+    background: #f0f9ff;
+    padding: 0.75rem;
+    border-bottom: 1px solid #e5e7eb;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+
+.preview-objective-header:hover {
+    background: #e0f2fe;
+}
+
+.preview-objective-title {
+    font-weight: 600;
+    color: #0369a1;
+    font-size: 0.95rem;
+}
+
+.preview-objective-description {
+    font-size: 0.85rem;
+    color: #0c4a6e;
+    margin-top: 0.25rem;
+    line-height: 1.3;
+}
+
+.preview-expand-icon {
+    font-size: 0.8rem;
+    color: #6b7280;
+    transition: transform 0.2s ease;
+}
+
+.preview-objective.expanded .preview-expand-icon {
+    transform: rotate(180deg);
+}
+
+.preview-objective-tasks {
+    padding: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    opacity: 0;
+}
+
+.preview-objective.expanded .preview-objective-tasks {
+    max-height: 300px;
+    opacity: 1;
+    padding: 0.75rem;
+}
+
+.preview-task {
+    background: #f9fafb;
+    border: 1px solid #f3f4f6;
+    border-radius: 4px;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.preview-task:last-child {
+    margin-bottom: 0;
+}
+
+.preview-task-title {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+
+.preview-task-description {
+    font-size: 0.8rem;
+    color: #6b7280;
+    line-height: 1.3;
+}
+
+.preview-summary {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.preview-summary-text {
+    font-size: 0.9rem;
+    color: #0369a1;
+    font-weight: 500;
+}
+
+/* Responsive Structure Preview */
+@media (max-width: 768px) {
+    .objectives-preview {
+        max-height: 300px;
+    }
+    
+    .preview-objective-header {
+        padding: 0.5rem;
+    }
+    
+    .preview-objective-title {
+        font-size: 0.9rem;
+    }
+    
+    .preview-objective-description {
+        font-size: 0.8rem;
+    }
+    
+    .preview-task {
+        padding: 0.4rem;
+    }
+    
+    .preview-task-title {
+        font-size: 0.8rem;
+    }
+    
+    .preview-task-description {
+        font-size: 0.75rem;
+    }
+}
+
+/* Active Objective Task Display */
+.objective-progress {
+    margin-bottom: 1rem;
+}
+
+.objective-tasks {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.objective-task-item {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.objective-task-item:last-child {
+    margin-bottom: 0;
+}
+
+.objective-task-item:hover {
+    background: #f1f5f9;
+    border-color: #d1d5db;
+}
+
+.objective-task-item.completed {
+    opacity: 0.7;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+.objective-task-item.completed .task-title {
+    text-decoration: line-through;
+    color: #6b7280;
+}
+
+.objective-task-item .task-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.objective-task-item .task-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: #4f46e5;
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.objective-task-item.completed .task-number {
+    background: #6b7280;
+}
+
+.objective-task-item .task-checkbox-container {
+    flex-shrink: 0;
+}
+
+.objective-task-item .objective-task-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #4f46e5;
+}
+
+.objective-task-item .task-controls {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.objective-task-item:hover .task-controls {
+    opacity: 1;
+}
+
+.objective-task-item .task-control-btn {
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.objective-task-item .task-control-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+    transform: scale(1.1);
+}
+
+
+
+.objective-task-item .task-title {
+    font-weight: 500;
+    color: #374151;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    margin-bottom: 0.25rem;
+}
+
+.objective-task-item .task-description {
+    font-size: 0.8rem;
+    color: #6b7280;
+    line-height: 1.3;
+}
+
+.objective-task-item.dragging {
+    opacity: 0.5;
+    transform: rotate(2deg);
+    cursor: grabbing;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.objective-task-actions {
+    text-align: center;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f3f4f6;
+    margin-top: 0.75rem;
+}
+
+/* Responsive Active Objective Tasks */
+@media (max-width: 768px) {
+    .objective-tasks {
+        max-height: 200px;
+    }
+    
+    .objective-task-item {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+    
+    .objective-task-item .task-number {
+        width: 18px;
+        height: 18px;
+        font-size: 0.7rem;
+    }
+    
+    .objective-task-item .task-title {
+        font-size: 0.8rem;
+    }
+    
+    .objective-task-item .task-description {
+        font-size: 0.75rem;
     }
 }

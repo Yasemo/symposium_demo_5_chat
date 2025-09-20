@@ -236,6 +236,58 @@ class API {
             body: { description },
         });
     }
+
+    // Objectives endpoints
+    async getObjectives(symposiumId) {
+        return this.request(`/objectives?symposium_id=${symposiumId}`);
+    }
+
+    async createObjective(data) {
+        return this.request('/objectives', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    // Objective Tasks endpoints
+    async getObjectiveTasks(objectiveId) {
+        return this.request(`/objective-tasks?objective_id=${objectiveId}`);
+    }
+
+    async createObjectiveTask(data) {
+        return this.request('/objective-tasks', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async updateObjectiveTask(taskId, data) {
+        return this.request(`/objective-tasks/${taskId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async deleteObjectiveTask(taskId) {
+        return this.request(`/objective-tasks/${taskId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async reorderObjectiveTasks(data) {
+        return this.request('/objective-tasks/reorder', {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    // Generate symposium structure
+    async generateSymposiumStructure(description) {
+        return this.request('/generate-symposium-structure', {
+            method: 'POST',
+            body: { description },
+        });
+    }
 }
 
 // Create global API instance

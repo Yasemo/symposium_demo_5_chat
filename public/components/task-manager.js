@@ -13,17 +13,16 @@ class TaskManager {
         window.addEventListener('symposiumChanged', (e) => {
             this.onSymposiumChanged(e.detail);
         });
+
+        // Listen for objective changes
+        window.addEventListener('objectiveChanged', (e) => {
+            this.onObjectiveChanged(e.detail);
+        });
     }
 
     bindEvents() {
-        // Task generation button in symposium modal
-        document.addEventListener('click', (e) => {
-            if (e.target.id === 'generate-tasks-btn') {
-                this.generateTasks();
-            }
-        });
-
         // Task management events will be bound dynamically
+        // Note: Task generation is now handled by symposium manager for objectives-based structure
     }
 
     async onSymposiumChanged(symposium) {
@@ -32,6 +31,14 @@ class TaskManager {
             await this.loadTasks(symposium.id);
         } else {
             this.tasks = [];
+        }
+    }
+
+    async onObjectiveChanged(objective) {
+        // For now, keep the existing symposium task behavior
+        // In the future, this could load objective-specific tasks
+        if (objective && this.currentSymposium) {
+            // Could load objective tasks here: await this.loadObjectiveTasks(objective.id);
         }
     }
 

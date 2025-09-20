@@ -16,6 +16,10 @@ class ChatInterface {
         window.addEventListener('consultantChanged', (e) => {
             this.onConsultantChanged(e.detail);
         });
+
+        window.addEventListener('objectiveChanged', (e) => {
+            this.onObjectiveChanged(e.detail);
+        });
     }
 
     bindEvents() {
@@ -54,9 +58,8 @@ class ChatInterface {
 
     async onSymposiumChanged(symposium) {
         if (symposium) {
-            // Wait for messages to be loaded before rendering
-            await messageManager.loadMessages(symposium.id);
-            this.loadMessages();
+            // Wait for objectives to be loaded, then load messages for active objective
+            this.loadMessagesForCurrentContext();
         } else {
             this.showWelcomeMessage();
             this.disableInput();
@@ -74,6 +77,22 @@ class ChatInterface {
         setTimeout(() => {
             messageManager.updateVisibilityIndicators();
         }, 100);
+    }
+
+    async onObjectiveChanged(objective) {
+        // Load messages for the new objective
+        await this.loadMessagesForCurrentContext();
+    }
+
+    async loadMessagesForCurrentContext() {
+        const symposium = symposiumManager.getCurrentSymposium();
+        const objective = objectiveManager?.getActiveObjective();
+        
+        if (symposium) {
+            // Load messages for the current objective (or all if no objective selected)
+            await messageManager.loadMessages(symposium.id, objective?.id);
+            this.loadMessages();
+        }
     }
 
     async loadMessages() {
@@ -204,10 +223,14 @@ class ChatInterface {
             // Show typing bubble
             this.showTypingBubble(consultant.name);
 
+            // Get current objective
+            const objective = objectiveManager?.getActiveObjective();
+            
             // Send message to API
             const response = await api.sendMessage({
                 symposium_id: symposium.id,
                 consultant_id: consultant.id,
+                objective_id: objective?.id,
                 message: message
             });
 

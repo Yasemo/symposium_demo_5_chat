@@ -205,6 +205,33 @@ async function handleApiRequest(req, url, db) {
       }
       break;
 
+    case "/objectives":
+      if (method === "GET") {
+        const symposiumId = url.searchParams.get("symposium_id");
+        return await getObjectives(db, symposiumId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return await createObjective(db, body);
+      }
+      break;
+
+    case "/objective-tasks":
+      if (method === "GET") {
+        const objectiveId = url.searchParams.get("objective_id");
+        return getObjectiveTasks(db, objectiveId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return createObjectiveTask(db, body);
+      }
+      break;
+
+    case "/generate-symposium-structure":
+      if (method === "POST") {
+        const body = await req.json();
+        return generateSymposiumStructure(body);
+      }
+      break;
+
     case "/generate-tasks":
       if (method === "POST") {
         const body = await req.json();
@@ -247,6 +274,21 @@ async function handleApiRequest(req, url, db) {
         } else if (method === "DELETE") {
           return deleteSymposiumTask(db, taskId);
         }
+      }
+      // Handle objective task operations with ID in path
+      if (path.startsWith("/objective-tasks/") && path.split("/").length === 3) {
+        const taskId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return updateObjectiveTask(db, taskId, body);
+        } else if (method === "DELETE") {
+          return deleteObjectiveTask(db, taskId);
+        }
+      }
+      // Handle objective task reordering
+      if (path === "/objective-tasks/reorder" && method === "PUT") {
+        const body = await req.json();
+        return reorderObjectiveTasks(db, body);
       }
       throw new Error("Not found");
   }
@@ -302,19 +344,27 @@ async function deleteConsultant(db, consultantId) {
   };
 }
 
-function getMessages(db, symposiumId) {
-  const stmt = db.prepare(`
+function getMessages(db, symposiumId, objectiveId = null) {
+  let query = `
     SELECT m.*, c.name as consultant_name,
            mv.consultant_id as visibility_consultant_id,
            mv.is_hidden
     FROM messages m
     LEFT JOIN consultants c ON m.consultant_id = c.id
     LEFT JOIN message_visibility mv ON m.id = mv.message_id
-    WHERE m.symposium_id = ?
-    ORDER BY m.timestamp, mv.consultant_id
-    LIMIT 100
-  `);
-  const rows = stmt.all(symposiumId);
+    WHERE m.symposium_id = ?`;
+  
+  const params = [symposiumId];
+  
+  if (objectiveId) {
+    query += ` AND m.objective_id = ?`;
+    params.push(objectiveId);
+  }
+  
+  query += ` ORDER BY m.timestamp, mv.consultant_id LIMIT 100`;
+  
+  const stmt = db.prepare(query);
+  const rows = stmt.all(...params);
 
   // Group visibility data by message
   const messages = [];
@@ -346,11 +396,11 @@ function getMessages(db, symposiumId) {
   return messages;
 }
 
-function createMessage(db, { symposium_id, consultant_id, content, is_user }) {
+function createMessage(db, { symposium_id, consultant_id, objective_id = null, content, is_user }) {
   const stmt = db.prepare(
-    "INSERT INTO messages (symposium_id, consultant_id, content, is_user, timestamp) VALUES (?, ?, ?, ?, datetime('now')) RETURNING *"
+    "INSERT INTO messages (symposium_id, consultant_id, objective_id, content, is_user, timestamp) VALUES (?, ?, ?, ?, ?, datetime('now')) RETURNING *"
   );
-  return stmt.get(symposium_id, consultant_id, content, is_user ? 1 : 0);
+  return stmt.get(symposium_id, consultant_id, objective_id, content, is_user ? 1 : 0);
 }
 
 function toggleMessageVisibility(db, { message_id, consultant_id, is_hidden }) {
@@ -383,17 +433,24 @@ function clearMessages(db, { symposium_id }) {
 }
 
 // Unified handleChat using the new consultant framework
-async function handleChat(db, { symposium_id, consultant_id, message }) {
+async function handleChat(db, { symposium_id, consultant_id, objective_id = null, message }) {
   // Get symposium details
   const symposium = db.prepare("SELECT * FROM symposiums WHERE id = ?").get(symposium_id);
   
   // Get consultant details
   const consultantData = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
   
+  // Get objective details if provided
+  let objective = null;
+  if (objective_id) {
+    objective = db.prepare("SELECT * FROM objectives WHERE id = ?").get(objective_id);
+  }
+  
   // Create user message
   const userMessage = createMessage(db, {
     symposium_id,
     consultant_id,
+    objective_id,
     content: message,
     is_user: true
   });
@@ -402,19 +459,27 @@ async function handleChat(db, { symposium_id, consultant_id, message }) {
     // Create consultant instance using the factory
     const consultant = await ConsultantFactory.createConsultant(db, consultantData);
     
-    // Get visible messages for context
-    const visibleMessages = db.prepare(`
+    // Get visible messages for context (filtered by objective if provided)
+    let visibleMessagesQuery = `
       SELECT m.*, c.name as consultant_name
       FROM messages m
       LEFT JOIN consultants c ON m.consultant_id = c.id
       LEFT JOIN message_visibility mv ON m.id = mv.message_id AND mv.consultant_id = ?
-      WHERE m.symposium_id = ? AND (mv.is_hidden IS NULL OR mv.is_hidden = 0)
-      ORDER BY m.timestamp
-      LIMIT 50
-    `).all(consultant_id, symposium_id);
+      WHERE m.symposium_id = ? AND (mv.is_hidden IS NULL OR mv.is_hidden = 0)`;
+    
+    const queryParams = [consultant_id, symposium_id];
+    
+    if (objective_id) {
+      visibleMessagesQuery += ` AND m.objective_id = ?`;
+      queryParams.push(objective_id);
+    }
+    
+    visibleMessagesQuery += ` ORDER BY m.timestamp LIMIT 50`;
+    
+    const visibleMessages = db.prepare(visibleMessagesQuery).all(...queryParams);
 
-    // Build context
-    const context = buildContext(db, symposium, consultantData, visibleMessages, message);
+    // Build context with objective information
+    const context = buildContext(db, symposium, consultantData, visibleMessages, message, objective);
     
     // Process message using the standardized consultant framework
     const response = await consultant.processMessage(message, context);
@@ -423,6 +488,7 @@ async function handleChat(db, { symposium_id, consultant_id, message }) {
     const assistantMessage = createMessage(db, {
       symposium_id,
       consultant_id,
+      objective_id,
       content: response,
       is_user: false
     });
@@ -440,6 +506,7 @@ async function handleChat(db, { symposium_id, consultant_id, message }) {
     const assistantMessage = createMessage(db, {
       symposium_id,
       consultant_id,
+      objective_id,
       content: errorResponse,
       is_user: false
     });
@@ -731,32 +798,36 @@ function deleteMessage(db, messageId) {
   };
 }
 
-function buildContext(db, symposium, consultant, messages, userMessage) {
+function buildContext(db, symposium, consultant, messages, userMessage, objective = null) {
   let context = `You are participating in a symposium called "${symposium.name}". `;
   context += `Symposium description: ${symposium.description}\n\n`;
   
-  // Add task progress context
-  const tasks = db.prepare(`
-    SELECT title, description, is_completed, order_index 
-    FROM symposium_tasks 
-    WHERE symposium_id = ? 
-    ORDER BY order_index
-  `).all(symposium.id);
-  
-  if (tasks.length > 0) {
-    context += "Mission Progress:\n";
-    tasks.forEach(task => {
-      const status = task.is_completed ? "[✓]" : "[ ]";
-      context += `${status} ${task.title}`;
-      if (task.description) {
-        context += ` - ${task.description}`;
-      }
+  // Add objective-specific context if provided
+  if (objective) {
+    context += `Current Objective: "${objective.title}"\n`;
+    context += `Objective Description: ${objective.description}\n\n`;
+    
+    // Add objective-specific task progress
+    const tasks = db.prepare(`
+      SELECT title, description, is_completed, order_index 
+      FROM objective_tasks 
+      WHERE objective_id = ? 
+      ORDER BY order_index
+    `).all(objective.id);
+    
+    if (tasks.length > 0) {
+      context += "Mission Progress for Current Objective:\n";
+      tasks.forEach(task => {
+        const status = task.is_completed ? "[✓]" : "[ ]";
+        context += `${status} ${task.title}`;
+        if (task.description) {
+          context += ` - ${task.description}`;
+        }
+        context += "\n";
+      });
       context += "\n";
-    });
-    context += "\n";
+    }
   }
-  
-  context += `Your role as a consultant: ${consultant.system_prompt}\n\n`;
   
   // Add global knowledge base context (now decoupled from symposiums)
   const knowledgeBaseCards = db.prepare(`
@@ -773,8 +844,10 @@ function buildContext(db, symposium, consultant, messages, userMessage) {
     context += "\n";
   }
   
+  context += `Your role as a consultant: ${consultant.system_prompt}\n\n`;
+  
   if (messages.length > 0) {
-    context += "Previous conversation history:\n";
+    context += objective ? "Previous conversation for this objective:\n" : "Previous conversation history:\n";
     messages.forEach(msg => {
       const speaker = msg.is_user ? "User" : (msg.consultant_name || "Assistant");
       context += `${speaker}: ${msg.content}\n`;
@@ -905,6 +978,310 @@ function reorderSymposiumTasks(db, { symposium_id, task_orders }) {
   });
   
   return { success: true };
+}
+
+// Objectives operations
+async function getObjectives(db, symposiumId) {
+  if (!symposiumId) {
+    throw new Error('Symposium ID is required');
+  }
+  
+  const stmt = db.prepare(`
+    SELECT * FROM objectives 
+    WHERE symposium_id = ? 
+    ORDER BY order_index, created_at
+  `);
+  return stmt.all(symposiumId);
+}
+
+async function createObjective(db, { symposium_id, title, description, order_index = null }) {
+  if (!symposium_id || !title || !description) {
+    throw new Error('Symposium ID, title, and description are required');
+  }
+  
+  // If no order_index provided, get the next available index
+  if (order_index === null) {
+    const maxOrderStmt = db.prepare(`
+      SELECT COALESCE(MAX(order_index), -1) + 1 as next_order 
+      FROM objectives 
+      WHERE symposium_id = ?
+    `);
+    const result = maxOrderStmt.get(symposium_id);
+    order_index = result.next_order;
+  }
+  
+  const stmt = db.prepare(`
+    INSERT INTO objectives (symposium_id, title, description, order_index, created_at, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+    RETURNING *
+  `);
+  return stmt.get(symposium_id, title, description, order_index);
+}
+
+// Objective Tasks operations
+function getObjectiveTasks(db, objectiveId) {
+  if (!objectiveId) {
+    throw new Error('Objective ID is required');
+  }
+  
+  const stmt = db.prepare(`
+    SELECT * FROM objective_tasks 
+    WHERE objective_id = ? 
+    ORDER BY order_index, created_at
+  `);
+  return stmt.all(objectiveId);
+}
+
+function createObjectiveTask(db, { objective_id, title, description = null, order_index = null }) {
+  if (!objective_id || !title) {
+    throw new Error('Objective ID and title are required');
+  }
+  
+  // If no order_index provided, get the next available index
+  if (order_index === null) {
+    const maxOrderStmt = db.prepare(`
+      SELECT COALESCE(MAX(order_index), -1) + 1 as next_order 
+      FROM objective_tasks 
+      WHERE objective_id = ?
+    `);
+    const result = maxOrderStmt.get(objective_id);
+    order_index = result.next_order;
+  }
+  
+  const stmt = db.prepare(`
+    INSERT INTO objective_tasks (objective_id, title, description, order_index, created_at, updated_at)
+    VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+    RETURNING *
+  `);
+  return stmt.get(objective_id, title, description, order_index);
+}
+
+function updateObjectiveTask(db, taskId, { title, description, is_completed }) {
+  if (!taskId || isNaN(taskId)) {
+    throw new Error('Valid task ID is required');
+  }
+  
+  // Check if task exists
+  const task = db.prepare("SELECT * FROM objective_tasks WHERE id = ?").get(taskId);
+  if (!task) {
+    throw new Error('Task not found');
+  }
+  
+  const stmt = db.prepare(`
+    UPDATE objective_tasks 
+    SET title = COALESCE(?, title), 
+        description = COALESCE(?, description), 
+        is_completed = COALESCE(?, is_completed),
+        updated_at = datetime('now')
+    WHERE id = ?
+    RETURNING *
+  `);
+  
+  // Handle undefined values by passing null instead
+  const result = stmt.get(
+    title !== undefined ? title : null, 
+    description !== undefined ? description : null, 
+    is_completed !== undefined ? (is_completed ? 1 : 0) : null, 
+    taskId
+  );
+  
+  if (!result) {
+    throw new Error('Failed to update task');
+  }
+  
+  return {
+    success: true,
+    task: result
+  };
+}
+
+function deleteObjectiveTask(db, taskId) {
+  if (!taskId || isNaN(taskId)) {
+    throw new Error('Valid task ID is required');
+  }
+  
+  // Check if task exists
+  const task = db.prepare("SELECT * FROM objective_tasks WHERE id = ?").get(taskId);
+  if (!task) {
+    throw new Error('Task not found');
+  }
+  
+  const stmt = db.prepare("DELETE FROM objective_tasks WHERE id = ?");
+  const result = stmt.run(taskId);
+  
+  if (result.changes === 0) {
+    throw new Error('Failed to delete task');
+  }
+  
+  return {
+    success: true,
+    deletedTask: task
+  };
+}
+
+function reorderObjectiveTasks(db, { objective_id, task_orders }) {
+  if (!objective_id || !Array.isArray(task_orders)) {
+    throw new Error('Objective ID and task orders array are required');
+  }
+  
+  // Update each task's order_index
+  const updateStmt = db.prepare(`
+    UPDATE objective_tasks 
+    SET order_index = ?, updated_at = datetime('now')
+    WHERE id = ? AND objective_id = ?
+  `);
+  
+  task_orders.forEach(({ task_id, order_index }) => {
+    updateStmt.run(order_index, task_id, objective_id);
+  });
+  
+  return { success: true };
+}
+
+// Generate symposium structure with multiple objectives
+async function generateSymposiumStructure({ description }) {
+  if (!description || description.trim() === '') {
+    throw new Error('Description is required for symposium structure generation');
+  }
+  
+  const prompt = `Based on the following symposium description, generate a complete structure with 3-5 distinct objectives that cover different aspects of the goal. For each objective, provide 5-8 specific tasks to accomplish that objective.
+
+Symposium Description: "${description}"
+
+Please respond with a JSON object containing an "objectives" array, where each objective has:
+- title: Brief, clear objective name
+- description: Detailed explanation of what this objective aims to achieve
+- tasks: Array of 5-8 tasks, each with "title" and "description"
+
+Format:
+{
+  "objectives": [
+    {
+      "title": "Research & Analysis",
+      "description": "Gather and analyze relevant information to inform decision-making",
+      "tasks": [
+        {
+          "title": "Literature review",
+          "description": "Conduct comprehensive review of existing research and documentation"
+        },
+        {
+          "title": "Data collection",
+          "description": "Gather relevant data from primary and secondary sources"
+        }
+      ]
+    }
+  ]
+}
+
+Focus on creating objectives that are:
+- Distinct and complementary (covering different aspects)
+- Logically organized (if there are dependencies)
+- Comprehensive (covering the full scope of the symposium)
+- Actionable (with concrete tasks)`;
+
+  try {
+    const response = await chatWithOpenRouter("openai/gpt-4o", prompt);
+    
+    // Try to parse the JSON response
+    let structure;
+    try {
+      // Extract JSON from response if it's wrapped in markdown or other text
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : response;
+      structure = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error('Failed to parse LLM response as JSON:', parseError);
+      // Fallback: create basic structure
+      structure = {
+        objectives: [
+          {
+            title: "Planning & Preparation",
+            description: "Establish foundation and prepare for symposium execution",
+            tasks: [
+              { title: "Define scope and objectives", description: "Clearly outline what needs to be accomplished" },
+              { title: "Resource assessment", description: "Identify required resources and constraints" },
+              { title: "Timeline development", description: "Create realistic timeline for completion" }
+            ]
+          },
+          {
+            title: "Research & Analysis",
+            description: "Gather information and analyze relevant data",
+            tasks: [
+              { title: "Information gathering", description: "Collect relevant data and insights" },
+              { title: "Analysis and evaluation", description: "Analyze collected information for insights" },
+              { title: "Documentation", description: "Document findings and recommendations" }
+            ]
+          },
+          {
+            title: "Implementation & Execution",
+            description: "Execute the main activities of the symposium",
+            tasks: [
+              { title: "Execute primary activities", description: "Carry out the main work required" },
+              { title: "Monitor progress", description: "Track advancement and make adjustments" },
+              { title: "Quality assurance", description: "Ensure outputs meet required standards" }
+            ]
+          }
+        ]
+      };
+    }
+    
+    // Validate the structure
+    if (!structure.objectives || !Array.isArray(structure.objectives)) {
+      throw new Error('Generated structure must contain an objectives array');
+    }
+    
+    // Ensure each objective has required fields and tasks
+    const validatedObjectives = structure.objectives.map((objective, objIndex) => ({
+      title: objective.title || `Objective ${objIndex + 1}`,
+      description: objective.description || 'No description provided',
+      tasks: Array.isArray(objective.tasks) ? objective.tasks.map((task, taskIndex) => ({
+        title: task.title || `Task ${taskIndex + 1}`,
+        description: task.description || 'No description provided'
+      })) : []
+    }));
+    
+    return {
+      success: true,
+      objectives: validatedObjectives
+    };
+    
+  } catch (error) {
+    console.error('Error generating symposium structure:', error);
+    return {
+      success: false,
+      error: error.message,
+      // Provide fallback structure
+      objectives: [
+        {
+          title: "Planning & Strategy",
+          description: "Develop comprehensive plan and strategy for the symposium",
+          tasks: [
+            { title: "Define objectives", description: "Clearly outline symposium goals and expected outcomes" },
+            { title: "Resource planning", description: "Identify and allocate necessary resources" },
+            { title: "Timeline creation", description: "Develop realistic timeline with milestones" }
+          ]
+        },
+        {
+          title: "Execution & Implementation",
+          description: "Execute the main activities and deliverables of the symposium",
+          tasks: [
+            { title: "Core activities", description: "Carry out primary symposium activities" },
+            { title: "Progress monitoring", description: "Track progress and make necessary adjustments" },
+            { title: "Quality control", description: "Ensure deliverables meet quality standards" }
+          ]
+        },
+        {
+          title: "Review & Completion",
+          description: "Finalize outcomes and document results",
+          tasks: [
+            { title: "Results evaluation", description: "Assess outcomes against initial objectives" },
+            { title: "Documentation", description: "Document processes, results, and learnings" },
+            { title: "Final review", description: "Conduct comprehensive review and wrap-up" }
+          ]
+        }
+      ]
+    };
+  }
 }
 
 // Task generation using LLM

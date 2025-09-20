@@ -2,6 +2,7 @@
 class SymposiumManager {
     constructor() {
         this.currentSymposium = null;
+        this.generatedStructure = null;
         this.init();
     }
 
@@ -19,6 +20,11 @@ class SymposiumManager {
         // Symposium selector
         document.getElementById('symposium-select').addEventListener('change', (e) => {
             this.onSymposiumSelect(e.target.value);
+        });
+
+        // Generate tasks button
+        document.getElementById('generate-tasks-btn').addEventListener('click', () => {
+            this.generateStructure();
         });
 
         // Modal events
@@ -105,6 +111,9 @@ class SymposiumManager {
         const modal = document.getElementById('symposium-modal');
         modal.classList.add('active');
         
+        // Reset generated structure
+        this.generatedStructure = null;
+        
         // Focus on the name input
         setTimeout(() => {
             document.getElementById('symposium-name').focus();
@@ -115,8 +124,106 @@ class SymposiumManager {
         const modal = document.getElementById('symposium-modal');
         modal.classList.remove('active');
         
-        // Reset form
+        // Reset form and generated structure
         document.getElementById('symposium-form').reset();
+        this.generatedStructure = null;
+        
+        // Hide preview section
+        const previewContainer = document.getElementById('structure-preview');
+        if (previewContainer) {
+            previewContainer.style.display = 'none';
+        }
+    }
+
+    async generateStructure() {
+        const description = document.getElementById('symposium-description').value.trim();
+        
+        if (!description) {
+            utils.showError('Please enter a symposium description first');
+            return;
+        }
+
+        const generateBtn = document.getElementById('generate-tasks-btn');
+        const originalText = generateBtn.textContent;
+        
+        try {
+            generateBtn.disabled = true;
+            generateBtn.textContent = '🔄 Generating...';
+            
+            const result = await api.generateSymposiumStructure(description);
+            
+            if (result.success && result.objectives) {
+                this.generatedStructure = result.objectives;
+                this.displayStructurePreview(result.objectives);
+                utils.showSuccess(`Generated ${result.objectives.length} objectives with tasks!`);
+            } else {
+                utils.showError(result.error || 'Failed to generate structure');
+            }
+            
+        } catch (error) {
+            console.error('Error generating structure:', error);
+            utils.showError('Failed to generate structure: ' + error.message);
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.textContent = originalText;
+        }
+    }
+
+    displayStructurePreview(objectives) {
+        const previewContainer = document.getElementById('structure-preview');
+        const objectivesPreview = document.getElementById('objectives-preview');
+        
+        if (!objectives || objectives.length === 0) {
+            previewContainer.style.display = 'none';
+            return;
+        }
+
+        // Calculate total tasks
+        const totalTasks = objectives.reduce((sum, obj) => sum + (obj.tasks ? obj.tasks.length : 0), 0);
+        
+        // Create summary
+        const summaryHtml = `
+            <div class="preview-summary">
+                <div class="preview-summary-text">
+                    📋 ${objectives.length} objectives with ${totalTasks} total tasks
+                </div>
+            </div>
+        `;
+
+        // Create objectives HTML
+        const objectivesHtml = objectives.map((objective, index) => {
+            const tasksHtml = objective.tasks ? objective.tasks.map(task => `
+                <div class="preview-task">
+                    <div class="preview-task-title">${task.title}</div>
+                    <div class="preview-task-description">${task.description}</div>
+                </div>
+            `).join('') : '';
+
+            return `
+                <div class="preview-objective" data-objective-index="${index}">
+                    <div class="preview-objective-header" onclick="symposiumManager.toggleObjectivePreview(${index})">
+                        <div>
+                            <div class="preview-objective-title">${objective.title}</div>
+                            <div class="preview-objective-description">${objective.description}</div>
+                        </div>
+                        <div class="preview-expand-icon">▼</div>
+                    </div>
+                    <div class="preview-objective-tasks">
+                        ${tasksHtml}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        objectivesPreview.innerHTML = summaryHtml + objectivesHtml;
+        previewContainer.style.display = 'block';
+    }
+
+    toggleObjectivePreview(index) {
+        const objective = document.querySelector(`[data-objective-index="${index}"]`);
+        if (objective) {
+            objective.classList.toggle('expanded');
+        }
     }
 
     async createSymposium() {
@@ -137,12 +244,13 @@ class SymposiumManager {
             });
 
             this.setCurrentSymposium(symposium);
-            this.hideCreateModal();
             
-            // Create any pending tasks from task generation
-            if (window.taskManager && window.taskManager.pendingTasks) {
-                await window.taskManager.createPendingTasks(symposium.id);
+            // Create objectives and tasks if structure was generated
+            if (this.generatedStructure && window.objectiveManager) {
+                await window.objectiveManager.createObjectivesFromStructure(symposium.id, this.generatedStructure);
             }
+            
+            this.hideCreateModal();
             
             // Refresh the symposium list
             await this.loadSymposiums();

@@ -31,10 +31,18 @@ class MessageManager {
         this.updateVisibilityIndicators();
     }
 
-    async loadMessages(symposiumId) {
+    async loadMessages(symposiumId, objectiveId = null) {
         try {
+            // For now, we'll load all messages for the symposium
+            // In the future, we could filter by objective_id on the server
             this.messages = await api.getMessages(symposiumId);
-            this.initializeVisibilityMap();
+            
+            // Filter messages by objective if specified
+            if (objectiveId) {
+                this.messages = this.messages.filter(msg => msg.objective_id === objectiveId);
+            }
+            
+            this.updateVisibilityIndicators();
         } catch (error) {
             console.error('Error loading messages:', error);
             utils.showError('Failed to load messages');
