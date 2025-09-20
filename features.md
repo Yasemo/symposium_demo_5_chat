@@ -13,3 +13,5 @@
 7. Make gemini 2.5 pro the default for all llm calls (unless specific model is needed)
 
 8. fix task sequence rearangement bug
+
+9. llm guided strucutured api calls for consultants. All api calls have a strucutred input form that is used for teh api call. The user can manually input the form, or get teh llm consultant to fill in teh form, using its context from the global system prompt. This allows api calls to be controlled, comsice, but also more effiecient. And the llm recieves teh data and formats in a way that is presentable for the user.
