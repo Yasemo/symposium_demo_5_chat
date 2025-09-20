@@ -520,6 +520,11 @@ async function handleChat(db, { symposium_id, consultant_id, objective_id = null
     // Build context with objective information
     const context = buildContext(db, symposium, consultantData, visibleMessages, message, objective);
     
+    // Log the full system prompt being sent to the LLM
+    console.log('\n=== FULL SYSTEM PROMPT SENT TO LLM ===');
+    console.log(context);
+    console.log('=== END SYSTEM PROMPT ===\n');
+    
     // Process message using the standardized consultant framework
     const response = await consultant.processMessage(message, context);
     
@@ -1163,18 +1168,42 @@ function reorderObjectiveTasks(db, { objective_id, task_orders }) {
     throw new Error('Objective ID and task orders array are required');
   }
   
-  // Update each task's order_index
-  const updateStmt = db.prepare(`
-    UPDATE objective_tasks 
-    SET order_index = ?, updated_at = datetime('now')
-    WHERE id = ? AND objective_id = ?
-  `);
+  console.log('Reordering objective tasks:', { objective_id, task_orders });
   
-  task_orders.forEach(({ task_id, order_index }) => {
-    updateStmt.run(order_index, task_id, objective_id);
-  });
-  
-  return { success: true };
+  try {
+    // Update each task's order_index
+    const updateStmt = db.prepare(`
+      UPDATE objective_tasks 
+      SET order_index = ?, updated_at = datetime('now')
+      WHERE id = ? AND objective_id = ?
+    `);
+    
+    let updatedCount = 0;
+    task_orders.forEach(({ task_id, order_index }) => {
+      console.log(`Updating task ${task_id} to order_index ${order_index}`);
+      const result = updateStmt.run(order_index, task_id, objective_id);
+      console.log(`Update result:`, result);
+      updatedCount += result.changes;
+    });
+    
+    console.log(`Total tasks updated: ${updatedCount}`);
+    
+    // Verify the changes by querying the database
+    const verifyStmt = db.prepare(`
+      SELECT id, title, order_index 
+      FROM objective_tasks 
+      WHERE objective_id = ? 
+      ORDER BY order_index
+    `);
+    const updatedTasks = verifyStmt.all(objective_id);
+    console.log('Updated task order in database:', updatedTasks);
+    
+    return { success: true, updatedCount, updatedTasks };
+    
+  } catch (error) {
+    console.error('Error in reorderObjectiveTasks:', error);
+    throw new Error(`Failed to reorder tasks: ${error.message}`);
+  }
 }
 
 // Generate symposium structure with multiple objectives

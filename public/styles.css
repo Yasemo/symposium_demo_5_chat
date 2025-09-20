@@ -373,7 +373,6 @@ body {
     padding: 0.5rem;
     border-radius: 6px;
     transition: all 0.2s ease;
-    opacity: 0;
     margin-left: 0.5rem;
     flex-shrink: 0;
 }
@@ -1226,6 +1225,11 @@ body {
     border-color: #4f46e5;
 }
 
+.model-search-input.has-results {
+    border-color: #059669;
+    background-color: rgba(5, 150, 105, 0.05);
+}
+
 .model-search-container select {
     border-radius: 0 0 8px 8px;
     border-top: none;
@@ -1235,6 +1239,77 @@ body {
 
 .model-search-container select:focus {
     border-top: 1px solid #4f46e5;
+}
+
+/* Model List Styles */
+.model-list-container {
+    border: 2px solid #e5e7eb;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    display: none; /* Hidden by default, shown when search input is focused */
+}
+
+.model-list-container.active {
+    display: block;
+}
+
+.model-list {
+    padding: 0.5rem 0;
+}
+
+.model-list-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.model-list-item:hover {
+    background-color: #f8fafc;
+}
+
+.model-list-item.selected {
+    background-color: #f0f9ff;
+    border-left: 3px solid #4f46e5;
+}
+
+.model-list-item.no-results {
+    color: #9ca3af;
+    font-style: italic;
+    text-align: center;
+    cursor: default;
+    background: none;
+    border-bottom: none;
+}
+
+.model-list-item .model-name {
+    font-weight: 600;
+    color: #374151;
+    font-size: 0.9rem;
+}
+
+.model-list-item .model-details {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: #6b7280;
+}
+
+.model-list-item .model-id {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    background: #f3f4f6;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+}
+
+.model-list-item .model-provider {
+    opacity: 0.8;
 }
 
 /* Model Info */

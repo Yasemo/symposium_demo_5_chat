@@ -4,17 +4,36 @@ class ConsultantManager {
         this.consultants = [];
         this.activeConsultant = null;
         this.availableModels = [];
+
+        // Debounced filter functions for better performance
+        this.debouncedFilterModels = this.debounce((searchTerm) => this.filterModels(searchTerm), 150);
+        this.debouncedFilterEditModels = this.debounce((searchTerm) => this.filterEditModels(searchTerm), 150);
+        this.debouncedFilterAirtableModels = this.debounce((searchTerm) => this.filterAirtableModels(searchTerm), 150);
+
         this.init();
     }
 
     init() {
         this.bindEvents();
         this.loadModels();
-        
+
         // Listen for symposium changes
         window.addEventListener('symposiumChanged', (e) => {
             this.onSymposiumChanged(e.detail);
         });
+    }
+
+    // Utility method for debouncing
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 
     bindEvents() {
@@ -23,17 +42,56 @@ class ConsultantManager {
             this.showCreateModal();
         });
 
-        // Modal events - bind to modal container only
+        // Modal events
         const modal = document.getElementById('consultant-modal');
         const closeBtn = modal.querySelector('.close-btn');
+        const cancelBtn = document.getElementById('cancel-consultant');
+        const form = document.getElementById('consultant-form');
+        const modelSelect = document.getElementById('consultant-model');
+        const modelSearch = document.getElementById('model-search');
 
         closeBtn.addEventListener('click', () => this.hideCreateModal());
-
+        cancelBtn.addEventListener('click', () => this.hideCreateModal());
+        
         // Close modal when clicking outside
         modal.addEventListener('click', (e) => {
             if (e.target === modal) {
                 this.hideCreateModal();
             }
+        });
+
+        // Model selection change
+        modelSelect.addEventListener('change', () => {
+            this.updateModelInfo();
+        });
+
+        // Model search functionality
+        modelSearch.addEventListener('input', (e) => {
+            this.debouncedFilterModels(e.target.value);
+        });
+
+        // Show/hide model list on focus/blur
+        modelSearch.addEventListener('focus', () => {
+            const container = document.getElementById('model-list-container');
+            if (container) {
+                container.classList.add('active');
+            }
+        });
+
+        modelSearch.addEventListener('blur', () => {
+            // Delay hiding to allow for clicks on model items
+            setTimeout(() => {
+                const container = document.getElementById('model-list-container');
+                if (container) {
+                    container.classList.remove('active');
+                }
+            }, 150);
+        });
+
+        // Form submission
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createConsultant();
         });
     }
 
@@ -41,58 +99,116 @@ class ConsultantManager {
         try {
             const response = await api.getModels();
             this.availableModels = response.models;
-            this.populateModelSelect();
+            // Don't populate list here - it will be populated when modal opens
         } catch (error) {
             console.error('Error loading models:', error);
             utils.showError('Failed to load available models');
         }
     }
 
-    populateModelSelect(filteredModels = null) {
-        const select = document.getElementById('consultant-model');
+    populateModelList(filteredModels = null) {
+        const modelList = document.getElementById('model-list');
         const modelsToShow = filteredModels || this.availableModels;
-        
-        select.innerHTML = '<option value="">Select a model...</option>';
-        
-        modelsToShow.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.textContent = model.name;
-            option.dataset.model = JSON.stringify(model);
-            select.appendChild(option);
-        });
-    }
 
-    filterModels(searchTerm) {
-        if (!searchTerm.trim()) {
-            this.populateModelSelect();
+        modelList.innerHTML = '';
+
+        if (modelsToShow.length === 0) {
+            modelList.innerHTML = '<div class="model-list-item no-results">No models found</div>';
             return;
         }
 
-        const filtered = this.availableModels.filter(model => {
-            const searchLower = searchTerm.toLowerCase();
-            return (
-                model.name.toLowerCase().includes(searchLower) ||
-                model.id.toLowerCase().includes(searchLower) ||
-                (model.description && model.description.toLowerCase().includes(searchLower)) ||
-                (model.top_provider && model.top_provider.name && model.top_provider.name.toLowerCase().includes(searchLower))
-            );
-        });
+        modelsToShow.forEach(model => {
+            const modelItem = document.createElement('div');
+            modelItem.className = 'model-list-item';
+            modelItem.dataset.modelId = model.id;
+            modelItem.dataset.model = JSON.stringify(model);
+            modelItem.innerHTML = `
+                <div class="model-name">${model.name}</div>
+                <div class="model-details">
+                    <span class="model-id">${model.id}</span>
+                    ${model.top_provider ? `<span class="model-provider">${model.top_provider.name}</span>` : ''}
+                </div>
+            `;
 
-        this.populateModelSelect(filtered);
+            modelItem.addEventListener('click', () => {
+                this.selectModel(model.id, model);
+            });
+
+            modelList.appendChild(modelItem);
+        });
     }
 
-    updateModelInfo() {
-        const select = document.getElementById('consultant-model');
+    selectModel(modelId, modelData) {
+        // Update hidden input
+        const hiddenInput = document.getElementById('consultant-model');
+        hiddenInput.value = modelId;
+
+        // Update visual selection
+        const modelItems = document.querySelectorAll('.model-list-item');
+        modelItems.forEach(item => {
+            item.classList.remove('selected');
+        });
+
+        const selectedItem = document.querySelector(`.model-list-item[data-model-id="${modelId}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('selected');
+        }
+
+        // Update model info
+        this.updateModelInfo(modelData);
+    }
+
+    filterModels(searchTerm) {
+        const modelList = document.getElementById('model-list');
+        const searchInput = document.getElementById('model-search');
+
+        if (!searchTerm.trim()) {
+            // Show all models
+            const modelItems = modelList.querySelectorAll('.model-list-item');
+            modelItems.forEach(item => {
+                item.style.display = 'block';
+            });
+            searchInput.classList.remove('has-results');
+            return;
+        }
+
+        const searchLower = searchTerm.toLowerCase();
+        let hasResults = false;
+
+        const modelItems = modelList.querySelectorAll('.model-list-item');
+        modelItems.forEach(item => {
+            const modelId = item.dataset.modelId;
+            const model = this.availableModels.find(m => m.id === modelId);
+
+            if (model) {
+                const matches = (
+                    model.name.toLowerCase().includes(searchLower) ||
+                    model.id.toLowerCase().includes(searchLower) ||
+                    (model.description && model.description.toLowerCase().includes(searchLower)) ||
+                    (model.top_provider && model.top_provider.name && model.top_provider.name.toLowerCase().includes(searchLower))
+                );
+
+                item.style.display = matches ? 'block' : 'none';
+                if (matches) hasResults = true;
+            }
+        });
+
+        // Add visual feedback for search results
+        if (hasResults) {
+            searchInput.classList.add('has-results');
+        } else {
+            searchInput.classList.remove('has-results');
+        }
+    }
+
+    updateModelInfo(modelData) {
         const infoDiv = document.getElementById('model-info');
-        
-        if (!select.value) {
+
+        if (!modelData) {
             infoDiv.innerHTML = '';
             return;
         }
 
-        const modelData = JSON.parse(select.selectedOptions[0].dataset.model);
-        
         infoDiv.innerHTML = `
             <div>
                 <strong>${modelData.name}</strong>
@@ -282,7 +398,7 @@ class ConsultantManager {
         backBtn.addEventListener('click', () => this.showManagementModal());
 
         modelSelect.addEventListener('change', () => this.updateEditModelInfo());
-        modelSearch.addEventListener('input', (e) => this.filterEditModels(e.target.value));
+        modelSearch.addEventListener('input', (e) => this.debouncedFilterEditModels(e.target.value));
     }
 
     populateEditModelSelect(selectedModel, filteredModels = null) {
@@ -309,11 +425,14 @@ class ConsultantManager {
     }
 
     filterEditModels(searchTerm) {
+        const select = document.getElementById('edit-consultant-model');
+        const searchInput = document.getElementById('edit-model-search');
         const consultant = this.consultants.find(c => c.id === parseInt(document.getElementById('edit-consultant-form').dataset.consultantId));
         const selectedModel = consultant ? consultant.model : null;
-        
+
         if (!searchTerm.trim()) {
             this.populateEditModelSelect(selectedModel);
+            searchInput.classList.remove('has-results');
             return;
         }
 
@@ -322,11 +441,27 @@ class ConsultantManager {
             return (
                 model.name.toLowerCase().includes(searchLower) ||
                 model.id.toLowerCase().includes(searchLower) ||
-                (model.description && model.description.toLowerCase().includes(searchLower))
+                (model.description && model.description.toLowerCase().includes(searchLower)) ||
+                (model.top_provider && model.top_provider.name && model.top_provider.name.toLowerCase().includes(searchLower))
             );
         });
 
         this.populateEditModelSelect(selectedModel, filtered);
+
+        // Add visual feedback for search results
+        if (filtered.length > 0) {
+            searchInput.classList.add('has-results');
+        } else {
+            searchInput.classList.remove('has-results');
+        }
+
+        // Force dropdown to show filtered results
+        if (filtered.length > 0) {
+            select.size = Math.min(filtered.length + 1, 10);
+            setTimeout(() => {
+                select.size = 1;
+            }, 100);
+        }
     }
 
     updateEditModelInfo() {
@@ -462,9 +597,12 @@ class ConsultantManager {
                     <label for="consultant-model">LLM Model</label>
                     <div class="model-search-container">
                         <input type="text" id="model-search" placeholder="Search models..." class="model-search-input">
-                        <select id="consultant-model" required>
-                            <option value="">Loading models...</option>
-                        </select>
+                        <div id="model-list-container" class="model-list-container">
+                            <div id="model-list" class="model-list">
+                                <!-- Models will be populated here -->
+                            </div>
+                        </div>
+                        <input type="hidden" id="consultant-model" name="consultant-model" required>
                     </div>
                     <div id="model-info" class="model-info"></div>
                 </div>
@@ -482,7 +620,7 @@ class ConsultantManager {
         
         // Rebind events for the new form
         this.bindCustomFormEvents();
-        this.populateModelSelect();
+        this.populateModelList();
         
         // Focus on the name input
         setTimeout(() => {
@@ -596,7 +734,25 @@ class ConsultantManager {
         backBtn.addEventListener('click', () => this.showTemplateSelection());
 
         modelSelect.addEventListener('change', () => this.updateModelInfo());
-        modelSearch.addEventListener('input', (e) => this.filterModels(e.target.value));
+        modelSearch.addEventListener('input', (e) => this.debouncedFilterModels(e.target.value));
+
+        // Show/hide model list on focus/blur
+        modelSearch.addEventListener('focus', () => {
+            const container = document.getElementById('model-list-container');
+            if (container) {
+                container.classList.add('active');
+            }
+        });
+
+        modelSearch.addEventListener('blur', () => {
+            // Delay hiding to allow for clicks on model items
+            setTimeout(() => {
+                const container = document.getElementById('model-list-container');
+                if (container) {
+                    container.classList.remove('active');
+                }
+            }, 150);
+        });
     }
 
     bindAirtableFormEvents() {
@@ -619,7 +775,7 @@ class ConsultantManager {
         backBtn.addEventListener('click', () => this.showTemplateSelection());
 
         modelSelect.addEventListener('change', () => this.updateAirtableModelInfo());
-        modelSearch.addEventListener('input', (e) => this.filterAirtableModels(e.target.value));
+        modelSearch.addEventListener('input', (e) => this.debouncedFilterAirtableModels(e.target.value));
 
         // Test connection button
         testBtn.addEventListener('click', () => this.testAirtableConnection());
@@ -664,8 +820,12 @@ class ConsultantManager {
     }
 
     filterAirtableModels(searchTerm) {
+        const select = document.getElementById('airtable-consultant-model');
+        const searchInput = document.getElementById('airtable-model-search');
+
         if (!searchTerm.trim()) {
             this.populateAirtableModelSelect();
+            searchInput.classList.remove('has-results');
             return;
         }
 
@@ -674,11 +834,27 @@ class ConsultantManager {
             return (
                 model.name.toLowerCase().includes(searchLower) ||
                 model.id.toLowerCase().includes(searchLower) ||
-                (model.description && model.description.toLowerCase().includes(searchLower))
+                (model.description && model.description.toLowerCase().includes(searchLower)) ||
+                (model.top_provider && model.top_provider.name && model.top_provider.name.toLowerCase().includes(searchLower))
             );
         });
 
         this.populateAirtableModelSelect(filtered);
+
+        // Add visual feedback for search results
+        if (filtered.length > 0) {
+            searchInput.classList.add('has-results');
+        } else {
+            searchInput.classList.remove('has-results');
+        }
+
+        // Force dropdown to show filtered results
+        if (filtered.length > 0) {
+            select.size = Math.min(filtered.length + 1, 10);
+            setTimeout(() => {
+                select.size = 1;
+            }, 100);
+        }
     }
 
     updateAirtableModelInfo() {
@@ -891,10 +1067,10 @@ class ConsultantManager {
             airtableModelSearch.value = '';
         }
         
-        // Reset model list to show all models if the select exists
-        const modelSelect = document.getElementById('consultant-model');
-        if (modelSelect && this.availableModels) {
-            this.populateModelSelect();
+        // Reset model list to show all models if the list exists
+        const modelList = document.getElementById('model-list');
+        if (modelList && this.availableModels) {
+            this.populateModelList();
         }
     }
 
@@ -1020,13 +1196,13 @@ class ConsultantManager {
     async deleteConsultant(consultant) {
         try {
             utils.showLoading();
-            
+
             // Call the API to delete the consultant
             await api.deleteConsultant(consultant.id);
-            
+
             // Remove from local array
             this.consultants = this.consultants.filter(c => c.id !== consultant.id);
-            
+
             // Handle active consultant selection
             if (this.activeConsultant && this.activeConsultant.id === consultant.id) {
                 // If we deleted the active consultant, select another one or clear selection
@@ -1040,12 +1216,22 @@ class ConsultantManager {
                     }));
                 }
             }
-            
+
             // Update the UI
             this.updateUI();
-            
+
+            // Refresh management modal if it's currently open
+            const modal = document.getElementById('consultant-modal');
+            if (modal && modal.classList.contains('active')) {
+                const managementList = modal.querySelector('.consultants-management-list');
+                if (managementList) {
+                    // Refresh the management modal content
+                    this.showManagementModal();
+                }
+            }
+
             utils.showSuccess(`Consultant "${consultant.name}" deleted successfully`);
-            
+
         } catch (error) {
             console.error('Error deleting consultant:', error);
             utils.showError(`Failed to delete consultant: ${error.message}`);
