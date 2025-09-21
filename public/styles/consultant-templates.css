@@ -1,0 +1,223 @@
+/* Consultant Template Selector Styles */
+
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.template-card {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--card-bg);
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.template-card:hover {
+    border-color: var(--primary-color);
+    background: var(--hover-bg);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(var(--primary-color-rgb), 0.15);
+}
+
+.template-card.selected {
+    border-color: var(--primary-color);
+    background: var(--primary-color-alpha);
+    box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb), 0.2);
+}
+
+.template-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+    width: 3rem;
+    height: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-color);
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+}
+
+.template-card.selected .template-icon {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.template-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.template-info h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.template-info p {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.api-badge {
+    display: inline-block;
+    background: var(--success-color);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.config-requirements {
+    background: var(--warning-bg);
+    border: 1px solid var(--warning-color);
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.config-requirements h4 {
+    margin: 0 0 0.5rem 0;
+    color: var(--warning-color);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.config-requirements p {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.85rem;
+    color: var(--text-color);
+}
+
+.config-requirements ul {
+    margin: 0 0 0.75rem 0;
+    padding-left: 1.5rem;
+}
+
+.config-requirements li {
+    font-size: 0.85rem;
+    color: var(--text-color);
+    margin-bottom: 0.25rem;
+}
+
+.config-note {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .template-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .template-card {
+        padding: 0.75rem;
+    }
+    
+    .template-icon {
+        font-size: 1.5rem;
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+    
+    .template-info h4 {
+        font-size: 0.9rem;
+    }
+    
+    .template-info p {
+        font-size: 0.8rem;
+    }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+    .template-card {
+        border-color: var(--border-color-dark);
+        background: var(--card-bg-dark);
+    }
+    
+    .template-card:hover {
+        background: var(--hover-bg-dark);
+    }
+    
+    .template-icon {
+        background: var(--bg-color-dark);
+        border-color: var(--border-color-dark);
+    }
+    
+    .config-requirements {
+        background: rgba(var(--warning-color-rgb), 0.1);
+        border-color: var(--warning-color);
+    }
+}
+
+/* Animation for template selection */
+.template-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.template-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(var(--primary-color-rgb), 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.template-card.selected::before {
+    left: 100%;
+}
+
+/* Success checkmark for selected template */
+.template-card.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    background: var(--success-color);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    animation: checkmark-appear 0.3s ease;
+}
+
+@keyframes checkmark-appear {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}

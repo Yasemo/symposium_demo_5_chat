@@ -283,15 +283,21 @@ class ConsultantManager {
                 
                 <div class="consultants-management-list">
                     ${this.consultants.map(consultant => `
-                        <div class="consultant-management-item" data-consultant-id="${consultant.id}">
+                        <div class="consultant-management-item ${consultant.is_default ? 'default-consultant' : ''}" data-consultant-id="${consultant.id}">
                             <div class="consultant-management-info">
-                                <div class="consultant-management-name">${consultant.name}</div>
+                                <div class="consultant-management-name">
+                                    ${consultant.name}
+                                    ${consultant.is_default ? '<span class="default-badge">Default</span>' : ''}
+                                </div>
                                 <div class="consultant-management-model">${consultant.model}</div>
                                 <div class="consultant-management-prompt">${consultant.system_prompt.substring(0, 100)}${consultant.system_prompt.length > 100 ? '...' : ''}</div>
                             </div>
                             <div class="consultant-management-actions">
                                 <button class="btn btn-secondary btn-small edit-consultant-btn" data-consultant-id="${consultant.id}">Edit</button>
-                                <button class="btn btn-secondary btn-small delete-consultant-btn" data-consultant-id="${consultant.id}">Delete</button>
+                                ${consultant.is_default ? 
+                                    '<span class="protected-text">Cannot delete default consultant</span>' : 
+                                    `<button class="btn btn-secondary btn-small delete-consultant-btn" data-consultant-id="${consultant.id}">Delete</button>`
+                                }
                             </div>
                         </div>
                     `).join('')}
@@ -1149,15 +1155,26 @@ class ConsultantManager {
             const modelShort = consultant.model.split('/').pop().split('-').slice(0, 2).join('-');
             const consultantIcon = consultant.name.charAt(0).toUpperCase();
             const colorClass = `consultant-${(index % 10) + 1}`;
+            
+            // Determine consultant type classes
+            let typeClasses = '';
+            if (consultant.is_default) {
+                typeClasses += ' default-consultant';
+            }
+            if (consultant.consultant_type && consultant.consultant_type !== 'pure_llm' && consultant.consultant_type !== 'standard') {
+                typeClasses += ' api-consultant';
+            }
 
             return `
-                <div class="consultant-tab ${isActive ? 'active expanded' : 'collapsed'}"
+                <div class="consultant-tab ${isActive ? 'active expanded' : 'collapsed'}${typeClasses}"
                      data-consultant-id="${consultant.id}"
                      data-consultant-name="${consultant.name}"
                      data-consultant-model="${consultant.model}"
+                     data-consultant-type="${consultant.consultant_type || 'pure_llm'}"
+                     data-is-default="${consultant.is_default || 0}"
                      title="${consultant.name} - ${consultant.model}">
                     <div class="consultant-tab-icon ${colorClass}">${consultantIcon}</div>
-                    <div class="consultant-tab-name">${consultant.name}</div>
+                    <div class="consultant-tab-name">${consultant.name}${consultant.is_default ? ' 💬' : ''}</div>
                     <div class="consultant-tab-model">${modelShort}</div>
                 </div>
             `;

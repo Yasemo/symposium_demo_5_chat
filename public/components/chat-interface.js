@@ -68,7 +68,14 @@ class ChatInterface {
 
     onConsultantChanged(consultant) {
         if (consultant) {
-            this.enableInput();
+            // Check if this is an API consultant that should use form interface
+            if (this.isApiConsultant(consultant)) {
+                // Form interface will handle this consultant
+                this.disableInput();
+            } else {
+                // Standard chat interface
+                this.enableInput();
+            }
         } else {
             this.disableInput();
         }
@@ -77,6 +84,11 @@ class ChatInterface {
         setTimeout(() => {
             messageManager.updateVisibilityIndicators();
         }, 100);
+    }
+
+    isApiConsultant(consultant) {
+        // Check if consultant requires form interface
+        return consultant.consultant_type !== 'standard' && consultant.consultant_type !== 'pure_llm';
     }
 
     async onObjectiveChanged(objective) {

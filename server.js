@@ -230,7 +230,43 @@ async function handleApiRequest(req, url, db) {
       }
       break;
 
+
+    case "/populate-form":
+      if (method === "POST") {
+        const body = await req.json();
+        return populateFormWithLLM(db, body);
+      }
+      break;
+
+    case "/execute-consultant-query":
+      if (method === "POST") {
+        const body = await req.json();
+        return executeConsultantQuery(db, body);
+      }
+      break;
+
+    case "/consultant-table-schema":
+      if (method === "POST") {
+        const body = await req.json();
+        return getConsultantTableSchema(db, body);
+      }
+      break;
+
     default:
+      // Handle consultant form schema with ID in path
+      if (path.startsWith("/consultant-form-schema/") && path.split("/").length === 3) {
+        const consultantId = path.split("/")[2];
+        if (method === "GET") {
+          return getConsultantFormSchema(db, consultantId);
+        }
+      }
+      // Handle consultant context with ID in path
+      if (path.startsWith("/consultant-context/") && path.split("/").length === 3) {
+        const consultantId = path.split("/")[2];
+        if (method === "GET") {
+          return getConsultantContext(db, consultantId);
+        }
+      }
       // Handle consultant operations with ID in path
       if (path.startsWith("/consultants/") && path.split("/").length === 3) {
         const consultantId = path.split("/")[2];
@@ -300,7 +336,28 @@ async function createSymposium(db, { name, description }) {
   const stmt = db.prepare(
     "INSERT INTO symposiums (name, description, created_at) VALUES (?, ?, datetime('now')) RETURNING *"
   );
-  return await stmt.get(name, description);
+  const symposium = await stmt.get(name, description);
+  
+  // Create default conversational consultant for the symposium
+  await createDefaultConsultant(db, symposium.id);
+  
+  return symposium;
+}
+
+async function createDefaultConsultant(db, symposiumId) {
+  const stmt = db.prepare(`
+    INSERT INTO consultants (symposium_id, name, model, system_prompt, consultant_type, is_default, created_at) 
+    VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+  `);
+  
+  return stmt.run(
+    symposiumId,
+    "Chat Assistant",
+    "openai/gpt-4o",
+    "You are a helpful AI assistant. Provide thoughtful, accurate responses to user questions and engage in meaningful conversations. You can help with analysis, brainstorming, problem-solving, and general discussion.",
+    "pure_llm",
+    1
+  );
 }
 
 async function updateSymposium(db, symposiumId, { name, description }) {
@@ -1489,6 +1546,637 @@ Focus on creating tasks that are:
         }
       ]
     };
+  }
+}
+
+// New Form Interface API handlers
+async function getConsultantFormSchema(db, consultantId) {
+  if (!consultantId || isNaN(consultantId)) {
+    throw new Error('Valid consultant ID is required');
+  }
+
+  // Get consultant details
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultantId);
+  if (!consultant) {
+    throw new Error('Consultant not found');
+  }
+
+  // Get template if available
+  let template = null;
+  if (consultant.template_id) {
+    template = db.prepare("SELECT * FROM consultant_templates WHERE id = ?").get(consultant.template_id);
+  }
+
+  // Return form schema based on consultant type or template
+  if (template && template.form_schema) {
+    return JSON.parse(template.form_schema);
+  }
+
+  // Fallback for legacy consultants - determine by consultant_type
+  switch (consultant.consultant_type) {
+    case 'airtable':
+      return getAirtableFormSchema();
+    case 'perplexity':
+      return getPerplexityFormSchema();
+    default:
+      throw new Error('This consultant type does not support form interface');
+  }
+}
+
+function getAirtableFormSchema() {
+  return {
+    name: 'airtable_query',
+    fields: [
+      {
+        name: 'table_name',
+        label: 'Table',
+        type: 'select',
+        required: true,
+        dynamic_options: 'tables'
+      },
+      {
+        name: 'fields',
+        label: 'Fields to Return',
+        type: 'multi-select',
+        required: false,
+        dynamic_options: 'table_fields',
+        depends_on: 'table_name'
+      },
+      {
+        name: 'filter_formula',
+        label: 'Filter Formula',
+        type: 'textarea',
+        required: false,
+        placeholder: 'Airtable formula (e.g., {Status} = "Active")',
+        rows: 3
+      },
+      {
+        name: 'sort',
+        label: 'Sort By',
+        type: 'select',
+        required: false,
+        dynamic_options: 'table_fields',
+        depends_on: 'table_name'
+      },
+      {
+        name: 'max_records',
+        label: 'Max Records',
+        type: 'number',
+        required: false,
+        default: 100,
+        min: 1,
+        max: 1000
+      }
+    ]
+  };
+}
+
+function getPerplexityFormSchema() {
+  return {
+    name: 'perplexity_search',
+    fields: [
+      {
+        name: 'query',
+        label: 'Search Query',
+        type: 'textarea',
+        required: true,
+        placeholder: 'Enter your search query or question',
+        rows: 3
+      },
+      {
+        name: 'focus',
+        label: 'Search Focus',
+        type: 'select',
+        required: false,
+        options: [
+          { value: 'internet', label: 'General Internet Search' },
+          { value: 'academic', label: 'Academic Sources' },
+          { value: 'news', label: 'Recent News' },
+          { value: 'reddit', label: 'Reddit Discussions' },
+          { value: 'youtube', label: 'YouTube Videos' }
+        ]
+      }
+    ]
+  };
+}
+
+async function getConsultantContext(db, consultantId) {
+  if (!consultantId || isNaN(consultantId)) {
+    throw new Error('Valid consultant ID is required');
+  }
+
+  // Get consultant details
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultantId);
+  if (!consultant) {
+    throw new Error('Consultant not found');
+  }
+
+  // Get dynamic context from database
+  const contextStmt = db.prepare(`
+    SELECT context_type, context_data 
+    FROM consultant_dynamic_context 
+    WHERE consultant_id = ?
+  `);
+  const contextRows = contextStmt.all(consultantId);
+
+  const context = {};
+  contextRows.forEach(row => {
+    try {
+      context[row.context_type] = JSON.parse(row.context_data);
+    } catch (error) {
+      console.error(`Error parsing context data for ${row.context_type}:`, error);
+      context[row.context_type] = [];
+    }
+  });
+
+  // If no context exists, try to refresh it
+  if (Object.keys(context).length === 0) {
+    await refreshConsultantContext(db, consultantId, consultant.consultant_type);
+    
+    // Try again after refresh
+    const refreshedRows = contextStmt.all(consultantId);
+    refreshedRows.forEach(row => {
+      try {
+        context[row.context_type] = JSON.parse(row.context_data);
+      } catch (error) {
+        console.error(`Error parsing refreshed context data for ${row.context_type}:`, error);
+        context[row.context_type] = [];
+      }
+    });
+  }
+
+  return context;
+}
+
+async function refreshConsultantContext(db, consultantId, consultantType) {
+  switch (consultantType) {
+    case 'airtable':
+      await refreshAirtableContext(db, consultantId);
+      break;
+    case 'perplexity':
+      // Perplexity doesn't need dynamic context refresh
+      break;
+    default:
+      console.log(`No context refresh needed for consultant type: ${consultantType}`);
+  }
+}
+
+async function refreshAirtableContext(db, consultantId) {
+  try {
+    // Get Airtable configuration
+    const config = await airtableService.getAirtableConfig(consultantId);
+    if (!config) {
+      throw new Error('Airtable configuration not found');
+    }
+
+    // Get available tables
+    const tablesResult = await airtableService.getAvailableTables(config.base_id, config.api_key);
+    if (!tablesResult.success) {
+      throw new Error('Failed to fetch Airtable tables');
+    }
+
+    const tables = tablesResult.tables.map(table => table.name);
+    
+    // Get fields for each table
+    const tableFields = {};
+    for (const table of tablesResult.tables) {
+      if (table.fields) {
+        tableFields[table.name] = table.fields.map(field => field.name);
+      }
+    }
+
+    // Store context in database
+    const upsertStmt = db.prepare(`
+      INSERT OR REPLACE INTO consultant_dynamic_context 
+      (consultant_id, context_type, context_data, last_updated) 
+      VALUES (?, ?, ?, datetime('now'))
+    `);
+
+    upsertStmt.run(consultantId, 'tables', JSON.stringify(tables));
+    upsertStmt.run(consultantId, 'table_fields', JSON.stringify(tableFields));
+
+    console.log(`Refreshed Airtable context for consultant ${consultantId}`);
+
+  } catch (error) {
+    console.error(`Error refreshing Airtable context for consultant ${consultantId}:`, error);
+    // Don't throw - just log the error so the form can still work with empty options
+  }
+}
+
+async function populateFormWithLLM(db, { consultant_id, instruction, form_schema, dynamic_context }) {
+  if (!consultant_id || !instruction || !form_schema) {
+    throw new Error('Consultant ID, instruction, and form schema are required');
+  }
+
+  // Get consultant details
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
+  if (!consultant) {
+    throw new Error('Consultant not found');
+  }
+
+  // Build context for LLM
+  const context = `You are helping to fill out a form for a ${consultant.consultant_type} consultant.
+Your role: ${consultant.system_prompt}
+
+CRITICAL AIRTABASE FILTER FORMULA SYNTAX:
+IMPORTANT: Airtable filterByFormula uses specific syntax rules:
+- Field names: ALWAYS wrap in curly braces {Field_Name}
+- String values: ALWAYS wrap in double quotes "value"
+- Multiple select fields: Use Find("value", {Field_Name})
+- Formulas must evaluate to true/false (truthy/falsy)
+- URL encoding: Formulas will be URL-encoded automatically
+
+FILTER FORMULA EXAMPLES:
+- Single field equality: {Status} = "Active"
+- Multiple select contains: Find("JavaScript", {Skills})
+- Numeric comparison: {Rating} >= 4
+- Text contains: Find("urgent", {Notes})
+- Boolean field: {IsActive} = 1
+
+CRITICAL FIELD NAME MAPPING RULES:
+- You MUST use EXACT field names from the schema below (CASE-SENSITIVE)
+- Map user terms to the closest matching field name
+- Examples: "skills" → "Skill_Emblems", "name" → "Name", "status" → "Status"
+- Only use field names that exist in the schema
+- NEVER modify field names - use them exactly as shown
+
+STRICT VALUE MATCHING FOR MULTIPLE SELECT FIELDS:
+- For multiple select fields, you MUST use EXACT values from the available options
+- Values are CASE-SENSITIVE - "Soccer" ≠ "soccer"
+- If user says "soccer" but schema has "Soccer", use "Soccer"
+- Check the "Available options" for each field and use exact matches only
+- Do not assume or modify option values
+
+Available form fields and their options:
+${form_schema.fields.map(field => {
+  let fieldDesc = `- ${field.name} (${field.type})`;
+  if (field.required) fieldDesc += ' [REQUIRED]';
+  fieldDesc += '\n';
+
+  if (field.dynamic_options && dynamic_context[field.dynamic_options]) {
+    fieldDesc += `  Available options: ${JSON.stringify(dynamic_context[field.dynamic_options])}\n`;
+  }
+
+  if (field.depends_on) {
+    fieldDesc += `  Depends on: ${field.depends_on}\n`;
+  }
+
+  return fieldDesc;
+}).join('')}
+
+User instruction: "${instruction}"
+
+INSTRUCTIONS:
+1. Map user terms to EXACT field names from the schema
+2. For filter_formula: Use proper Airtable syntax with {Field_Name} and "values"
+3. For multiple select fields in filters: Use Find("value", {Field_Name})
+4. Return ONLY a JSON object with field names as keys and their values
+5. For select fields, use exact values from the available options
+6. For multi-select fields, return an array of values
+7. Only include fields that should be filled based on the instruction
+
+EXAMPLE MAPPINGS:
+- User says "find active users" → filter_formula: "{Status} = \\"Active\\""
+- User says "find people with JavaScript skills" → filter_formula: "Find(\\"JavaScript\\", {Skills})"
+- User says "sort by name" → sort: "Name"
+- User says "show only first 50" → max_records: 50`;
+
+  try {
+    const response = await chatWithOpenRouter(consultant.model, context);
+    
+    // Try to parse JSON response
+    let formValues;
+    try {
+      // Extract JSON from response if wrapped in markdown
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonStr = jsonMatch ? jsonMatch[0] : response;
+      formValues = JSON.parse(jsonStr);
+    } catch (parseError) {
+      console.error('Failed to parse LLM form response:', parseError);
+      throw new Error('Failed to parse form values from AI response');
+    }
+
+    return {
+      success: true,
+      form_values: formValues
+    };
+
+  } catch (error) {
+    console.error('Error populating form with LLM:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+async function executeConsultantQuery(db, { consultant_id, query_parameters }) {
+  if (!consultant_id || !query_parameters) {
+    throw new Error('Consultant ID and query parameters are required');
+  }
+
+  // Get consultant details
+  const consultant = db.prepare("SELECT * FROM consultants WHERE id = ?").get(consultant_id);
+  if (!consultant) {
+    throw new Error('Consultant not found');
+  }
+
+  // Validate query parameters against schema for Airtable
+  if (consultant.consultant_type === 'airtable') {
+    await validateAirtableQueryParameters(db, consultant_id, query_parameters);
+  }
+
+  try {
+    let apiResponse;
+    let apiData = null;
+
+    // Execute API call based on consultant type
+    switch (consultant.consultant_type) {
+      case 'airtable':
+        const airtableResult = await executeAirtableQuery(db, consultant_id, query_parameters);
+        apiResponse = airtableResult.response;
+        apiData = airtableResult.data;
+        console.log(`Airtable query results for table "${query_parameters.table_name}":`, JSON.stringify(apiData, null, 2));
+        break;
+
+      case 'perplexity':
+        apiResponse = await executePerplexityQuery(db, consultant_id, query_parameters);
+        console.log(`Perplexity query results:`, apiResponse);
+        break;
+
+      default:
+        throw new Error(`Unsupported consultant type: ${consultant.consultant_type}`);
+    }
+
+    // Process API response with LLM
+    const llmContext = `You are a ${consultant.consultant_type} consultant. 
+Your role: ${consultant.system_prompt}
+
+You executed a query with these parameters:
+${JSON.stringify(query_parameters, null, 2)}
+
+API Response:
+${apiResponse}
+
+Please analyze and summarize this data in a helpful way for the user.`;
+
+    const llmResponse = await chatWithOpenRouter(consultant.model, llmContext);
+
+    // Create message record
+    const message = createMessage(db, {
+      symposium_id: consultant.symposium_id,
+      consultant_id: consultant_id,
+      content: llmResponse,
+      is_user: false
+    });
+
+    return {
+      success: true,
+      message: message,
+      llm_response: llmResponse,
+      api_data: apiData
+    };
+
+  } catch (error) {
+    console.error('Error executing consultant query:', error);
+    
+    // Create error message
+    const errorMessage = `I encountered an error while executing your query: ${error.message}`;
+    const message = createMessage(db, {
+      symposium_id: consultant.symposium_id,
+      consultant_id: consultant_id,
+      content: errorMessage,
+      is_user: false
+    });
+
+    return {
+      success: false,
+      message: message,
+      llm_response: errorMessage,
+      error: error.message
+    };
+  }
+}
+
+async function executeAirtableQuery(db, consultantId, queryParams) {
+  // Get Airtable configuration
+  const config = await airtableService.getAirtableConfig(consultantId);
+  if (!config) {
+    throw new Error('Airtable configuration not found');
+  }
+
+  // Build Airtable API URL
+  let url = `https://api.airtable.com/v0/${config.base_id}/${encodeURIComponent(queryParams.table_name)}`;
+  const params = new URLSearchParams();
+
+  // Add query parameters
+  if (queryParams.fields && queryParams.fields.length > 0) {
+    queryParams.fields.forEach(field => {
+      params.append('fields[]', field);
+    });
+  }
+
+  if (queryParams.filter_formula && queryParams.filter_formula.trim()) {
+    params.append('filterByFormula', queryParams.filter_formula.trim());
+  }
+
+  if (queryParams.sort && queryParams.sort.trim()) {
+    params.append('sort[0][field]', queryParams.sort.trim());
+    params.append('sort[0][direction]', 'asc');
+  }
+
+  if (queryParams.max_records) {
+    params.append('maxRecords', queryParams.max_records.toString());
+  }
+
+  if (params.toString()) {
+    url += '?' + params.toString();
+  }
+
+  // Execute API call
+  const response = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${config.api_key}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Airtable API error: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+  
+  return {
+    response: JSON.stringify(data, null, 2),
+    data: data
+  };
+}
+
+async function executePerplexityQuery(db, consultantId, queryParams) {
+  // Get Perplexity configuration
+  const configManager = new ConsultantConfigManager(db);
+  const config = await configManager.getApiConfig(consultantId);
+
+  if (!config || config.api_type !== 'perplexity') {
+    throw new Error('Perplexity configuration not found');
+  }
+
+  // Build Perplexity API request
+  const requestBody = {
+    model: 'llama-3.1-sonar-small-128k-online',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a helpful research assistant. Provide accurate, well-sourced information.'
+      },
+      {
+        role: 'user',
+        content: queryParams.query
+      }
+    ]
+  };
+
+  // Add focus if specified
+  if (queryParams.focus && queryParams.focus !== 'internet') {
+    requestBody.search_domain_filter = [queryParams.focus];
+  }
+
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${config.config.api_key}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+
+  if (!response.ok) {
+    const errorData = await response.text();
+    throw new Error(`Perplexity API error: ${response.status} ${errorData}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
+async function validateAirtableQueryParameters(db, consultantId, queryParams) {
+  if (!queryParams.table_name) {
+    throw new Error('Table name is required');
+  }
+
+  try {
+    // Get the table schema from the database (should be fresh from form filling)
+    const schemaStmt = db.prepare(`
+      SELECT context_data FROM consultant_dynamic_context
+      WHERE consultant_id = ? AND context_type = ?
+    `);
+    const schemaRow = schemaStmt.get(consultantId, `table_schema_${queryParams.table_name}`);
+
+    if (!schemaRow) {
+      throw new Error(`Schema not found for table "${queryParams.table_name}". Please select the table first to load the schema.`);
+    }
+
+    const tableSchema = JSON.parse(schemaRow.context_data);
+    const fieldNames = tableSchema.fields.map(field => field.name);
+
+    // Validate filter formula field names
+    if (queryParams.filter_formula && queryParams.filter_formula.trim()) {
+      const formula = queryParams.filter_formula.trim();
+      // Extract field names from curly braces {Field_Name}
+      const fieldMatches = formula.match(/\{([^}]+)\}/g);
+
+      if (fieldMatches) {
+        for (const match of fieldMatches) {
+          const fieldName = match.slice(1, -1); // Remove { }
+          if (!fieldNames.includes(fieldName)) {
+            throw new Error(`Field "${fieldName}" does not exist in table "${queryParams.table_name}". Available fields: ${fieldNames.join(', ')}`);
+          }
+        }
+      }
+    }
+
+    // Validate sort field names
+    if (queryParams.sort && queryParams.sort.trim()) {
+      const sortField = queryParams.sort.trim();
+      if (!fieldNames.includes(sortField)) {
+        throw new Error(`Sort field "${sortField}" does not exist in table "${queryParams.table_name}". Available fields: ${fieldNames.join(', ')}`);
+      }
+    }
+
+    // Validate fields array
+    if (queryParams.fields && Array.isArray(queryParams.fields)) {
+      for (const field of queryParams.fields) {
+        if (!fieldNames.includes(field)) {
+          throw new Error(`Field "${field}" does not exist in table "${queryParams.table_name}". Available fields: ${fieldNames.join(', ')}`);
+        }
+      }
+    }
+
+    console.log(`Validated query parameters for table "${queryParams.table_name}"`);
+
+  } catch (error) {
+    console.error('Error validating query parameters:', error);
+    throw error;
+  }
+}
+
+async function getConsultantTableSchema(db, { consultant_id, table_name }) {
+  if (!consultant_id || !table_name) {
+    throw new Error('Consultant ID and table name are required');
+  }
+
+  try {
+    // Get Airtable configuration
+    const config = await airtableService.getAirtableConfig(consultant_id);
+    if (!config) {
+      throw new Error('Airtable configuration not found');
+    }
+
+    // Create Airtable client and get fresh table schema
+    const { AirtableClient } = await import("./airtable-client.js");
+    const client = new AirtableClient(config.api_key, config.base_id);
+    const tableSchema = await client.getTableSchema(table_name);
+
+    // Format the schema for the LLM with field details
+    const formattedSchema = {
+      table_name: tableSchema.name,
+      fields: tableSchema.fields.map(field => ({
+        name: field.name,
+        type: field.type,
+        options: field.options || {}
+      }))
+    };
+
+    console.log(`Retrieved table schema for "${table_name}":`, JSON.stringify(formattedSchema, null, 2));
+
+    // Update the dynamic context in database with fresh schema
+    const upsertStmt = db.prepare(`
+      INSERT OR REPLACE INTO consultant_dynamic_context
+      (consultant_id, context_type, context_data, last_updated)
+      VALUES (?, ?, ?, datetime('now'))
+    `);
+
+    // Store table-specific field information
+    const tableFieldsKey = `table_fields_${table_name}`;
+    const fieldNames = formattedSchema.fields.map(field => field.name);
+    upsertStmt.run(consultant_id, tableFieldsKey, JSON.stringify(fieldNames));
+
+    // Also store the full schema for this table
+    const tableSchemaKey = `table_schema_${table_name}`;
+    upsertStmt.run(consultant_id, tableSchemaKey, JSON.stringify(formattedSchema));
+
+    console.log(`Fetched fresh schema for table "${table_name}" with ${formattedSchema.fields.length} fields`);
+
+    return {
+      table_name: formattedSchema.table_name,
+      fields: formattedSchema.fields
+    };
+
+  } catch (error) {
+    console.error('Error fetching table schema:', error);
+    throw new Error(`Failed to fetch table schema: ${error.message}`);
   }
 }
 

@@ -291,6 +291,29 @@ class API {
             },
         });
     }
+
+    // New Form Interface endpoints
+    async getConsultantFormSchema(consultantId) {
+        return this.request(`/consultant-form-schema/${consultantId}`);
+    }
+
+    async getConsultantContext(consultantId) {
+        return this.request(`/consultant-context/${consultantId}`);
+    }
+
+    async populateForm(data) {
+        return this.request('/populate-form', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async executeConsultantQuery(data) {
+        return this.request('/execute-consultant-query', {
+            method: 'POST',
+            body: data,
+        });
+    }
 }
 
 // Create global API instance

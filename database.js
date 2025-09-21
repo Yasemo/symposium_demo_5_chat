@@ -19,6 +19,9 @@ export async function initDatabase(db) {
       api_type TEXT NOT NULL,
       default_system_prompt TEXT NOT NULL,
       required_config_fields TEXT NOT NULL, -- JSON array of required fields
+      form_schema TEXT, -- JSON form configuration
+      api_schema TEXT, -- JSON API parameter mapping
+      context_requirements TEXT, -- JSON array of context types needed
       icon TEXT DEFAULT '🤖',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -34,31 +37,13 @@ export async function initDatabase(db) {
       system_prompt TEXT NOT NULL,
       template_id INTEGER,
       consultant_type TEXT DEFAULT 'standard', -- kept for backward compatibility
+      is_default INTEGER DEFAULT 0, -- flag for default conversational consultant
       created_at TEXT NOT NULL,
       FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
       FOREIGN KEY (template_id) REFERENCES consultant_templates (id) ON DELETE SET NULL
     )
   `);
 
-  // Add template_id column if it doesn't exist (migration)
-  try {
-    db.exec(`ALTER TABLE consultants ADD COLUMN template_id INTEGER REFERENCES consultant_templates(id) ON DELETE SET NULL`);
-    console.log("Added template_id column to existing consultants table");
-  } catch (error) {
-    if (!error.message.includes('duplicate column name')) {
-      console.error("Error adding template_id column:", error);
-    }
-  }
-
-  // Add consultant_type column if it doesn't exist (migration)
-  try {
-    db.exec(`ALTER TABLE consultants ADD COLUMN consultant_type TEXT DEFAULT 'standard'`);
-    console.log("Added consultant_type column to existing consultants table");
-  } catch (error) {
-    if (!error.message.includes('duplicate column name')) {
-      console.error("Error adding consultant_type column:", error);
-    }
-  }
 
   // Create external API configurations table
   db.exec(`
@@ -122,25 +107,6 @@ export async function initDatabase(db) {
     )
   `);
 
-  // Add updated_at column if it doesn't exist (migration)
-  try {
-    db.exec(`ALTER TABLE messages ADD COLUMN updated_at TEXT`);
-    console.log("Added updated_at column to existing messages table");
-  } catch (error) {
-    if (!error.message.includes('duplicate column name')) {
-      console.error("Error adding updated_at column:", error);
-    }
-  }
-
-  // Add objective_id column if it doesn't exist (migration)
-  try {
-    db.exec(`ALTER TABLE messages ADD COLUMN objective_id INTEGER REFERENCES objectives(id) ON DELETE CASCADE`);
-    console.log("Added objective_id column to existing messages table");
-  } catch (error) {
-    if (!error.message.includes('duplicate column name')) {
-      console.error("Error adding objective_id column:", error);
-    }
-  }
 
   // Create message visibility table
   db.exec(`
@@ -173,23 +139,6 @@ export async function initDatabase(db) {
     )
   `);
 
-  // Add is_global column if it doesn't exist (migration)
-  try {
-    db.exec(`ALTER TABLE knowledge_base_cards ADD COLUMN is_global INTEGER NOT NULL DEFAULT 1`);
-    console.log("Added is_global column to existing knowledge_base_cards table");
-  } catch (error) {
-    if (!error.message.includes('duplicate column name')) {
-      console.error("Error adding is_global column:", error);
-    }
-  }
-
-  // Update existing knowledge base cards to be global
-  try {
-    db.exec(`UPDATE knowledge_base_cards SET is_global = 1 WHERE is_global IS NULL`);
-    console.log("Updated existing knowledge base cards to be global");
-  } catch (error) {
-    console.error("Error updating existing knowledge base cards:", error);
-  }
 
   // Create objectives table
   db.exec(`
@@ -217,6 +166,19 @@ export async function initDatabase(db) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (objective_id) REFERENCES objectives (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Create consultant dynamic context table for form options
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS consultant_dynamic_context (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      consultant_id INTEGER NOT NULL,
+      context_type TEXT NOT NULL, -- 'tables', 'fields', 'views', etc.
+      context_data TEXT NOT NULL, -- JSON with current options
+      last_updated TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE CASCADE,
+      UNIQUE(consultant_id, context_type)
     )
   `);
 

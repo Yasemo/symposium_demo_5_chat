@@ -86,8 +86,8 @@ export class ConsultantTemplateManager {
   async createTemplate(templateData) {
     const stmt = this.db.prepare(`
       INSERT INTO consultant_templates 
-      (name, display_name, description, api_type, default_system_prompt, required_config_fields, icon)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      (name, display_name, description, api_type, default_system_prompt, required_config_fields, form_schema, api_schema, context_requirements, icon)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `);
     
@@ -98,6 +98,9 @@ export class ConsultantTemplateManager {
       templateData.api_type,
       templateData.default_system_prompt,
       JSON.stringify(templateData.required_config_fields),
+      templateData.form_schema,
+      templateData.api_schema,
+      JSON.stringify(templateData.context_requirements),
       templateData.icon
     );
   }
@@ -111,6 +114,9 @@ export class ConsultantTemplateManager {
         api_type: 'pure_llm',
         default_system_prompt: 'You are a helpful AI assistant. Provide thoughtful, accurate responses to user questions and engage in meaningful conversations.',
         required_config_fields: [],
+        form_schema: null,
+        api_schema: null,
+        context_requirements: [],
         icon: '🤖'
       },
       {
@@ -119,7 +125,63 @@ export class ConsultantTemplateManager {
         description: 'Specialized consultant for querying and analyzing data from Airtable databases.',
         api_type: 'airtable',
         default_system_prompt: 'You are an Airtable Data Assistant specialized in querying and analyzing data from Airtable databases. You help users retrieve information from their Airtable bases by interpreting natural language queries and converting them into appropriate database operations.',
-        required_config_fields: ['base_id', 'api_key', 'table_name'],
+        required_config_fields: ['base_id', 'api_key'],
+        form_schema: JSON.stringify({
+          name: 'airtable_query',
+          fields: [
+            {
+              name: 'table_name',
+              label: 'Table',
+              type: 'select',
+              required: true,
+              dynamic_options: 'tables'
+            },
+            {
+              name: 'fields',
+              label: 'Fields to Return',
+              type: 'multi-select',
+              required: false,
+              dynamic_options: 'table_fields',
+              depends_on: 'table_name'
+            },
+            {
+              name: 'filter_formula',
+              label: 'Filter Formula',
+              type: 'textarea',
+              required: false,
+              placeholder: 'Airtable formula (e.g., {Status} = "Active")',
+              rows: 3
+            },
+            {
+              name: 'sort',
+              label: 'Sort By',
+              type: 'select',
+              required: false,
+              dynamic_options: 'table_fields',
+              depends_on: 'table_name'
+            },
+            {
+              name: 'max_records',
+              label: 'Max Records',
+              type: 'number',
+              required: false,
+              default: 100,
+              min: 1,
+              max: 1000
+            }
+          ]
+        }),
+        api_schema: JSON.stringify({
+          endpoint: 'https://api.airtable.com/v0/{base_id}/{table_name}',
+          method: 'GET',
+          parameters: {
+            fields: 'query_array',
+            filterByFormula: 'query_string',
+            sort: 'sort_object',
+            maxRecords: 'number'
+          }
+        }),
+        context_requirements: ['tables', 'table_fields'],
         icon: '📊'
       },
       {
@@ -129,6 +191,42 @@ export class ConsultantTemplateManager {
         api_type: 'perplexity',
         default_system_prompt: 'You are a research assistant that helps users find current information and conduct research using web search capabilities. You provide accurate, up-to-date information with proper source attribution.',
         required_config_fields: ['api_key'],
+        form_schema: JSON.stringify({
+          name: 'perplexity_search',
+          fields: [
+            {
+              name: 'query',
+              label: 'Search Query',
+              type: 'textarea',
+              required: true,
+              placeholder: 'Enter your search query or question',
+              rows: 3
+            },
+            {
+              name: 'focus',
+              label: 'Search Focus',
+              type: 'select',
+              required: false,
+              options: [
+                { value: 'internet', label: 'General Internet Search' },
+                { value: 'academic', label: 'Academic Sources' },
+                { value: 'news', label: 'Recent News' },
+                { value: 'reddit', label: 'Reddit Discussions' },
+                { value: 'youtube', label: 'YouTube Videos' }
+              ]
+            }
+          ]
+        }),
+        api_schema: JSON.stringify({
+          endpoint: 'https://api.perplexity.ai/chat/completions',
+          method: 'POST',
+          parameters: {
+            model: 'llama-3.1-sonar-small-128k-online',
+            messages: 'chat_messages',
+            search_domain_filter: 'array'
+          }
+        }),
+        context_requirements: [],
         icon: '🔍'
       }
     ];

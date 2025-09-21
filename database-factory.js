@@ -140,6 +140,9 @@ export async function initDatabase(db) {
       api_type TEXT NOT NULL,
       default_system_prompt TEXT NOT NULL,
       required_config_fields TEXT NOT NULL,
+      form_schema TEXT,
+      api_schema TEXT,
+      context_requirements TEXT,
       icon TEXT DEFAULT '🤖',
       created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'}
     )
@@ -161,6 +164,7 @@ export async function initDatabase(db) {
       system_prompt TEXT NOT NULL,
       template_id INTEGER,
       consultant_type TEXT DEFAULT 'standard',
+      is_default INTEGER DEFAULT 0,
       created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL'},
       FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
       FOREIGN KEY (template_id) REFERENCES consultant_templates (id) ON DELETE SET NULL
@@ -402,6 +406,25 @@ export async function initDatabase(db) {
     await db.exec(objectiveTasksTable);
   } else {
     db.exec(objectiveTasksTable);
+  }
+
+  // Create consultant dynamic context table for form options
+  const consultantDynamicContextTable = `
+    CREATE TABLE IF NOT EXISTS consultant_dynamic_context (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      consultant_id INTEGER NOT NULL,
+      context_type TEXT NOT NULL,
+      context_data TEXT NOT NULL,
+      last_updated ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      FOREIGN KEY (consultant_id) REFERENCES consultants (id) ON DELETE CASCADE,
+      UNIQUE(consultant_id, context_type)
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(consultantDynamicContextTable);
+  } else {
+    db.exec(consultantDynamicContextTable);
   }
 
   console.log(`Database initialized successfully (${db.type})`);
