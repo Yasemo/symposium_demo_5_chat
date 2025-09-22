@@ -1879,7 +1879,7 @@ EXAMPLE MAPPINGS:
   }
 }
 
-async function executeConsultantQuery(db, { consultant_id, query_parameters }) {
+async function executeConsultantQuery(db, { consultant_id, query_parameters, objective_id = null }) {
   if (!consultant_id || !query_parameters) {
     throw new Error('Consultant ID and query parameters are required');
   }
@@ -1896,53 +1896,54 @@ async function executeConsultantQuery(db, { consultant_id, query_parameters }) {
   }
 
   try {
-    let apiResponse;
+    let formattedResponse;
     let apiData = null;
 
     // Execute API call based on consultant type
     switch (consultant.consultant_type) {
       case 'airtable':
-        const airtableResult = await executeAirtableQuery(db, consultant_id, query_parameters);
-        apiResponse = airtableResult.response;
-        apiData = airtableResult.data;
+        // Create consultant instance to use programmatic formatting
+        const airtableConsultant = await ConsultantFactory.createConsultant(db, consultant);
+        
+        // Execute the API call
+        const apiAction = {
+          action: "query_airtable",
+          parameters: query_parameters
+        };
+        
+        const apiResponse = await airtableConsultant.executeApiCall(apiAction);
+        apiData = apiResponse;
+        
+        // Use programmatic formatting - NO LLM needed
+        formattedResponse = airtableConsultant.generateMarkdownTable(apiResponse, query_parameters);
+        
         console.log(`Airtable query results for table "${query_parameters.table_name}":`, JSON.stringify(apiData, null, 2));
         break;
 
       case 'perplexity':
-        apiResponse = await executePerplexityQuery(db, consultant_id, query_parameters);
-        console.log(`Perplexity query results:`, apiResponse);
+        // For Perplexity, we still need LLM processing
+        const perplexityResponse = await executePerplexityQuery(db, consultant_id, query_parameters);
+        formattedResponse = perplexityResponse;
+        console.log(`Perplexity query results:`, perplexityResponse);
         break;
 
       default:
         throw new Error(`Unsupported consultant type: ${consultant.consultant_type}`);
     }
 
-    // Process API response with LLM
-    const llmContext = `You are a ${consultant.consultant_type} consultant. 
-Your role: ${consultant.system_prompt}
-
-You executed a query with these parameters:
-${JSON.stringify(query_parameters, null, 2)}
-
-API Response:
-${apiResponse}
-
-Please analyze and summarize this data in a helpful way for the user.`;
-
-    const llmResponse = await chatWithOpenRouter(consultant.model, llmContext);
-
-    // Create message record
+    // Create message record with the formatted response
     const message = createMessage(db, {
       symposium_id: consultant.symposium_id,
       consultant_id: consultant_id,
-      content: llmResponse,
+      objective_id: objective_id,
+      content: formattedResponse,
       is_user: false
     });
 
     return {
       success: true,
       message: message,
-      llm_response: llmResponse,
+      llm_response: formattedResponse,
       api_data: apiData
     };
 
@@ -1954,6 +1955,7 @@ Please analyze and summarize this data in a helpful way for the user.`;
     const message = createMessage(db, {
       symposium_id: consultant.symposium_id,
       consultant_id: consultant_id,
+      objective_id: objective_id,
       content: errorMessage,
       is_user: false
     });
@@ -1989,9 +1991,11 @@ async function executeAirtableQuery(db, consultantId, queryParams) {
     params.append('filterByFormula', queryParams.filter_formula.trim());
   }
 
-  if (queryParams.sort && queryParams.sort.trim()) {
-    params.append('sort[0][field]', queryParams.sort.trim());
-    params.append('sort[0][direction]', 'asc');
+  if (queryParams.sort && Array.isArray(queryParams.sort) && queryParams.sort.length > 0) {
+    queryParams.sort.forEach((sortSpec, index) => {
+      params.append(`sort[${index}][field]`, sortSpec.field);
+      params.append(`sort[${index}][direction]`, sortSpec.direction || 'asc');
+    });
   }
 
   if (queryParams.max_records) {
@@ -2107,10 +2111,11 @@ async function validateAirtableQueryParameters(db, consultantId, queryParams) {
     }
 
     // Validate sort field names
-    if (queryParams.sort && queryParams.sort.trim()) {
-      const sortField = queryParams.sort.trim();
-      if (!fieldNames.includes(sortField)) {
-        throw new Error(`Sort field "${sortField}" does not exist in table "${queryParams.table_name}". Available fields: ${fieldNames.join(', ')}`);
+    if (queryParams.sort && Array.isArray(queryParams.sort) && queryParams.sort.length > 0) {
+      for (const sortSpec of queryParams.sort) {
+        if (sortSpec.field && !fieldNames.includes(sortSpec.field)) {
+          throw new Error(`Sort field "${sortSpec.field}" does not exist in table "${queryParams.table_name}". Available fields: ${fieldNames.join(', ')}`);
+        }
       }
     }
 

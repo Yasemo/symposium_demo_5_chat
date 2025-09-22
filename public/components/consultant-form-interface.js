@@ -46,23 +46,22 @@ class ConsultantFormInterface {
         this.formContainer.className = 'consultant-form-overlay hidden';
         this.formContainer.innerHTML = `
             <div class="form-header">
-                <h3 id="form-title">Consultant Query Form</h3>
+                <h3 id="form-title">Airtable Query Builder</h3>
                 <button id="close-form-btn" class="close-btn">×</button>
             </div>
             <div class="form-content">
-                <div class="instruction-section">
-                    <label for="llm-instruction">Describe what you want to query:</label>
-                    <textarea id="llm-instruction" placeholder="e.g., Find all professionals with public speaking skills"></textarea>
-                    <button id="fill-form-btn" class="primary-btn">Fill Form with AI</button>
+                <div class="table-selection-section">
+                    <label for="table-selector">Select Table:</label>
+                    <select id="table-selector">
+                        <option value="">Choose a table...</option>
+                    </select>
+                    <div id="table-status" class="table-status"></div>
                 </div>
-                <div class="form-separator">
-                    <span>or configure manually</span>
-                </div>
-                <div id="dynamic-form-fields" class="form-fields">
-                    <!-- Dynamic form fields will be inserted here -->
+                <div id="query-builder-container" class="query-builder-container hidden">
+                    <!-- Query builder will be inserted here -->
                 </div>
                 <div class="form-actions">
-                    <button id="execute-query-btn" class="primary-btn">Execute Query</button>
+                    <button id="execute-query-btn" class="primary-btn" disabled>Execute Query</button>
                     <button id="cancel-form-btn" class="secondary-btn">Cancel</button>
                 </div>
             </div>
@@ -99,16 +98,6 @@ class ConsultantFormInterface {
             });
         }
 
-        const fillBtn = this.formContainer.querySelector('#fill-form-btn');
-        if (fillBtn) {
-            fillBtn.addEventListener('click', () => {
-                this.fillFormWithAI();
-            });
-            // Initially disable the AI fill button until table is selected
-            fillBtn.disabled = true;
-            fillBtn.textContent = 'Select a table first';
-        }
-
         const executeBtn = this.formContainer.querySelector('#execute-query-btn');
         if (executeBtn) {
             executeBtn.addEventListener('click', () => {
@@ -116,18 +105,18 @@ class ConsultantFormInterface {
             });
         }
 
+        // Table selector change event
+        const tableSelector = this.formContainer.querySelector('#table-selector');
+        if (tableSelector) {
+            tableSelector.addEventListener('change', (e) => {
+                this.onTableSelectionChanged(e.target.value);
+            });
+        }
+
         // Listen for consultant changes
         window.addEventListener('consultantChanged', (e) => {
             this.onConsultantChanged(e.detail);
         });
-
-        // Auto-resize instruction textarea
-        const instructionTextarea = this.formContainer.querySelector('#llm-instruction');
-        if (instructionTextarea) {
-            instructionTextarea.addEventListener('input', (e) => {
-                this.autoResizeTextarea(e.target);
-            });
-        }
     }
 
     autoResizeTextarea(textarea) {
@@ -248,45 +237,35 @@ class ConsultantFormInterface {
     }
 
     populateTableSelector() {
-        // The table selector gets populated through the dynamic form fields
-        // This method ensures the tables are available in the context
         if (!this.dynamicContext || !this.dynamicContext.tables) {
             console.warn('No tables available in dynamic context');
             return;
         }
 
-        console.log('Tables available:', this.dynamicContext.tables);
+        const tableSelector = this.formContainer.querySelector('#table-selector');
+        if (!tableSelector) {
+            console.error('Table selector not found');
+            return;
+        }
+
+        // Clear existing options except the first one
+        tableSelector.innerHTML = '<option value="">Choose a table...</option>';
+
+        // Add table options
+        this.dynamicContext.tables.forEach(tableName => {
+            const option = document.createElement('option');
+            option.value = tableName;
+            option.textContent = tableName;
+            tableSelector.appendChild(option);
+        });
+
+        console.log('Populated table selector with tables:', this.dynamicContext.tables);
     }
 
     generateFormFields() {
-        // Ensure form container exists first
-        if (!this.formContainer) {
-            console.error('Form container not available. Cannot generate form fields.');
-            return;
-        }
-
-        // Always use form container scope instead of global document
-        const fieldsContainer = this.formContainer.querySelector('#dynamic-form-fields');
-        if (!fieldsContainer) {
-            console.error('Dynamic form fields container not found within form container.');
-            console.log('Form container HTML:', this.formContainer.innerHTML);
-            return;
-        }
-        
-        fieldsContainer.innerHTML = '';
-
-        if (!this.formSchema || !this.formSchema.fields) {
-            fieldsContainer.innerHTML = '<p>No form configuration available</p>';
-            return;
-        }
-
-        this.formSchema.fields.forEach(field => {
-            const fieldElement = this.createFormField(field);
-            fieldsContainer.appendChild(fieldElement);
-        });
-
-        // Bind field change events for dependent fields
-        this.bindFieldDependencies();
+        // For Airtable consultants, we don't need the old form fields
+        // The query builder will handle everything
+        console.log('Skipping old form field generation - using query builder instead');
     }
 
     createFormField(field) {
@@ -519,50 +498,74 @@ class ConsultantFormInterface {
     async onTableSelectionChanged(tableName) {
         if (!this.formContainer) return;
 
-        const fillBtn = this.formContainer.querySelector('#fill-form-btn');
-        const statusIndicator = this.formContainer.querySelector('#table-status-indicator');
-        if (!fillBtn || !statusIndicator) return;
+        const queryBuilderContainer = this.formContainer.querySelector('#query-builder-container');
+        const executeBtn = this.formContainer.querySelector('#execute-query-btn');
+        const tableStatus = this.formContainer.querySelector('#table-status');
 
         if (!tableName || tableName.trim() === '') {
-            // No table selected - disable AI fill button and reset status
-            fillBtn.disabled = true;
-            fillBtn.textContent = 'Select a table first';
-            this.updateTableStatus('Select a table', 'neutral');
+            // No table selected - hide query builder and disable execute button
+            if (queryBuilderContainer) {
+                queryBuilderContainer.classList.add('hidden');
+            }
+            if (executeBtn) {
+                executeBtn.disabled = true;
+            }
+            if (tableStatus) {
+                tableStatus.textContent = 'Please select a table to start building your query.';
+                tableStatus.className = 'table-status';
+            }
             return;
         }
 
         try {
-            // Show loading while fetching schema
-            fillBtn.disabled = true;
-            fillBtn.textContent = 'Loading table schema...';
-            this.updateTableStatus('Loading schema...', 'loading');
+            // Show loading
+            if (tableStatus) {
+                tableStatus.textContent = 'Loading table schema...';
+                tableStatus.className = 'table-status loading';
+            }
+            this.showLoading();
 
             // Fetch fresh schema for the selected table
-            const freshContext = await this.fetchTableSchema(this.currentConsultant.id, tableName);
+            const tableSchema = await this.fetchTableSchema(this.currentConsultant.id, tableName);
 
             // Update the dynamic context with fresh schema
             this.dynamicContext = {
                 ...this.dynamicContext,
-                ...freshContext
+                ...tableSchema
             };
 
-            // Update dependent fields with fresh schema
-            this.updateDependentField({ name: 'fields', dynamic_options: 'table_fields', depends_on: 'table_name' });
-            this.updateDependentField({ name: 'sort', dynamic_options: 'table_fields', depends_on: 'table_name' });
+            // Initialize or update the query builder
+            this.initializeQueryBuilder(tableSchema);
 
-            // Enable AI fill button and show success status
-            fillBtn.disabled = false;
-            fillBtn.textContent = 'Fill Form with AI';
-            this.updateTableStatus('Schema loaded', 'success');
+            // Show query builder and enable execute button
+            if (queryBuilderContainer) {
+                queryBuilderContainer.classList.remove('hidden');
+            }
+            if (executeBtn) {
+                executeBtn.disabled = false;
+            }
+            if (tableStatus) {
+                tableStatus.textContent = `Table "${tableName}" loaded successfully. Build your query below.`;
+                tableStatus.className = 'table-status success';
+            }
 
         } catch (error) {
             console.error('Error fetching table schema:', error);
             utils.showError('Failed to load table schema: ' + error.message);
 
-            // Reset button state and show error status
-            fillBtn.disabled = true;
-            fillBtn.textContent = 'Select a table first';
-            this.updateTableStatus('Failed to load', 'error');
+            // Hide query builder and show error status
+            if (queryBuilderContainer) {
+                queryBuilderContainer.classList.add('hidden');
+            }
+            if (executeBtn) {
+                executeBtn.disabled = true;
+            }
+            if (tableStatus) {
+                tableStatus.textContent = 'Failed to load table schema. Please try again.';
+                tableStatus.className = 'table-status error';
+            }
+        } finally {
+            this.hideLoading();
         }
     }
 
@@ -585,6 +588,30 @@ class ConsultantFormInterface {
             // Update text
             statusText.textContent = text;
         }
+    }
+
+    initializeQueryBuilder(tableSchema) {
+        const queryBuilderContainer = this.formContainer.querySelector('#query-builder-container');
+        if (!queryBuilderContainer) {
+            console.error('Query builder container not found');
+            return;
+        }
+
+        // Clear existing query builder
+        queryBuilderContainer.innerHTML = '';
+
+        // Create query builder instance
+        this.queryBuilder = new AirtableQueryBuilder(queryBuilderContainer, {
+            onQueryChange: (queryParams) => {
+                this.currentQuery = queryParams;
+                console.log('Query updated:', queryParams);
+            }
+        });
+
+        // Set the schema for the query builder
+        this.queryBuilder.setSchema(tableSchema);
+
+        console.log('Query builder initialized with schema:', tableSchema);
     }
 
     async fetchTableSchema(consultantId, tableName) {
@@ -670,6 +697,19 @@ class ConsultantFormInterface {
     }
 
     getFormValues() {
+        // For the new query builder, get values from the query builder instead of form fields
+        if (this.queryBuilder) {
+            const queryParams = this.queryBuilder.getQuery();
+            const tableSelector = this.formContainer.querySelector('#table-selector');
+            const tableName = tableSelector ? tableSelector.value : '';
+            
+            return {
+                table_name: tableName,
+                ...queryParams
+            };
+        }
+        
+        // Fallback for non-Airtable consultants (if any)
         const values = {};
         
         if (!this.formSchema || !this.formSchema.fields || !this.formContainer) return values;
@@ -704,12 +744,17 @@ class ConsultantFormInterface {
             this.showLoading();
 
             const formValues = this.getFormValues();
-            
+            console.log('Executing query with parameters:', formValues);
+
+            // Get current objective
+            const currentObjective = window.objectiveManager?.getActiveObjective();
+
             const response = await api.request('/execute-consultant-query', {
                 method: 'POST',
                 body: {
                     consultant_id: this.currentConsultant.id,
-                    query_parameters: formValues
+                    query_parameters: formValues,
+                    objective_id: currentObjective?.id || null
                 }
             });
 
@@ -734,6 +779,20 @@ class ConsultantFormInterface {
     }
 
     validateForm() {
+        // For Airtable consultants with query builder
+        if (this.queryBuilder) {
+            const tableSelector = this.formContainer.querySelector('#table-selector');
+            if (!tableSelector || !tableSelector.value) {
+                utils.showError('Please select a table to query.');
+                return false;
+            }
+            
+            // The query builder handles its own validation
+            // We could add more validation here if needed
+            return true;
+        }
+        
+        // Fallback validation for other consultant types
         if (!this.formSchema || !this.formSchema.fields || !this.formContainer) return true;
 
         const errors = [];

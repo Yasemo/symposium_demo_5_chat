@@ -1,0 +1,877 @@
+/* Airtable Query Builder Specific Styles */
+/* Note: Base form styles are inherited from consultant-form.css */
+
+.query-builder {
+    background: #ffffff;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 16px 0;
+    font-family: inherit;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.query-section {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.query-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.query-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.query-section h4::before {
+    content: '';
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    border-radius: 2px;
+}
+
+/* Query Builder Specific Field Selection */
+.individual-fields {
+    margin-left: 24px;
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 2px solid #e2e8f0;
+}
+
+.individual-fields.hidden {
+    display: none;
+}
+
+/* Conditions Styles */
+.conditions-container {
+    min-height: 60px;
+    margin-bottom: 16px;
+}
+
+.no-conditions {
+    background: #f7fafc;
+    border: 2px dashed #cbd5e0;
+    border-radius: 6px;
+    padding: 24px;
+    text-align: center;
+    color: #718096;
+    font-style: italic;
+}
+
+/* Logic Operator Styles */
+.logic-operator {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.condition-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+}
+
+.value-input {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Sort & Limit Styles */
+.sort-limit-controls {
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    gap: 24px;
+}
+
+.sort-controls,
+.limit-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sort-controls select,
+.limit-controls input {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+}
+
+.sort-controls {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 12px;
+    align-items: end;
+}
+
+.limit-controls {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px;
+    align-items: end;
+}
+
+/* Query Preview Styles */
+.query-preview {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.formula-preview {
+    margin-bottom: 16px;
+}
+
+.formula-preview label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.formula-preview code {
+    display: block;
+    background: #2d3748;
+    color: #e2e8f0;
+    padding: 12px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    word-break: break-all;
+    white-space: pre-wrap;
+    min-height: 20px;
+}
+
+.query-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.query-summary > div {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0;
+    font-size: 14px;
+}
+
+.query-summary strong {
+    color: #2d3748;
+}
+
+.query-summary span {
+    color: #4a5568;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .condition-controls {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .remove-condition-btn {
+        justify-self: end;
+        margin-top: 8px;
+    }
+    
+    .sort-limit-controls {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    
+    .sort-controls {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .limit-controls {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    .query-summary {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Animation for adding/removing conditions */
+.condition {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading states */
+.query-builder.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.query-builder.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    margin: -12px 0 0 -12px;
+    border: 2px solid #e2e8f0;
+    border-top: 2px solid #4299e1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Error states */
+.condition.error {
+    border-color: #e53e3e;
+    background: #fed7d7;
+}
+
+.field-select.error,
+.operator-select.error,
+.value-input-field.error {
+    border-color: #e53e3e;
+    background: #fed7d7;
+}
+
+/* Success states */
+.condition.valid {
+    border-color: #48bb78;
+}
+
+/* Disabled states */
+.query-builder.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.query-builder.disabled .add-condition-btn,
+.query-builder.disabled .remove-condition-btn {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Tooltips */
+.tooltip {
+    position: relative;
+}
+
+.tooltip::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2d3748;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 1000;
+}
+
+.tooltip:hover::after {
+    opacity: 1;
+}
+
+/* Focus indicators for accessibility */
+.query-builder *:focus {
+    outline: 2px solid #4299e1;
+    outline-offset: 2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .query-builder {
+        border-color: #000000;
+    }
+    
+    .condition {
+        border-color: #000000;
+    }
+    
+    .field-select,
+    .operator-select,
+    .value-input-field {
+        border-color: #000000;
+    }
+}
+
+/* Table Selection Section Styles */
+.table-selection-section {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.table-selection-section label {
+    display: block;
+    font-weight: 500;
+    color: #2d3748;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+
+.table-selection-section select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+    margin-bottom: 12px;
+}
+
+.table-selection-section select:focus {
+    outline: none;
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+/* Table Status Styles */
+.table-status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+}
+
+.table-status.loading {
+    background: #e6fffa;
+    color: #234e52;
+    border: 1px solid #81e6d9;
+}
+
+.table-status.success {
+    background: #f0fff4;
+    color: #22543d;
+    border: 1px solid #9ae6b4;
+}
+
+.table-status.error {
+    background: #fed7d7;
+    color: #742a2a;
+    border: 1px solid #fc8181;
+}
+
+/* Query Builder Container */
+.query-builder-container {
+    margin-top: 20px;
+}
+
+.query-builder-container.hidden {
+    display: none;
+}
+
+/* Query Builder Specific Enhancements */
+/* Note: Form overlay, actions, and loading styles are inherited from consultant-form.css */
+
+/* Search Functionality Styles */
+.searchable-select-container,
+.searchable-multi-select-container {
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px 6px 0 0;
+    font-size: 14px;
+    background: white;
+    color: #374151;
+    font-family: inherit;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.search-input::placeholder {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.searchable-select-container .searchable-select {
+    border-radius: 0 0 6px 6px;
+    border-top: none;
+    margin-top: 0;
+}
+
+.searchable-select-container .searchable-select:focus {
+    border-top: 1px solid #4f46e5;
+}
+
+.searchable-multi-select-container .multi-select-container {
+    border-radius: 0 0 6px 6px;
+    border-top: none;
+    margin-top: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.multi-select-option {
+    padding: 6px 8px;
+    margin: 2px 0;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
+}
+
+.multi-select-option:hover {
+    background: #f1f5f9;
+}
+
+.multi-select-option input[type="checkbox"] {
+    accent-color: #4f46e5;
+    margin-right: 8px;
+}
+
+.multi-select-option span {
+    font-size: 14px;
+    color: #374151;
+    user-select: none;
+}
+
+.no-results {
+    padding: 12px;
+    text-align: center;
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 14px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 0 0 6px 6px;
+    border-top: none;
+}
+
+.no-results.hidden {
+    display: none;
+}
+
+.selection-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    font-size: 12px;
+}
+
+.selected-count {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.clear-selection-btn {
+    background: #ef4444;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.clear-selection-btn:hover {
+    background: #dc2626;
+}
+
+.clear-selection-btn:active {
+    transform: scale(0.95);
+}
+
+/* Enhanced Button Styles to Match App Design */
+.add-condition-btn {
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+    border: 2px solid #059669;
+    border-radius: 8px;
+    padding: 12px 20px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.add-condition-btn:hover {
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+    border-color: #047857;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+}
+
+.add-condition-btn::before {
+    content: '➕';
+    font-size: 12px;
+}
+
+.remove-condition-btn {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+    color: white;
+    border: 2px solid #dc2626;
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.remove-condition-btn:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #991b1b 100%);
+    border-color: #b91c1c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+}
+
+/* Enhanced Form Controls */
+.field-select,
+.operator-select,
+.value-input-field,
+.search-input {
+    padding: 10px 14px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    color: #374151;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+.field-select:focus,
+.operator-select:focus,
+.value-input-field:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.field-select:hover,
+.operator-select:hover,
+.value-input-field:hover {
+    border-color: #d1d5db;
+}
+
+/* Logic Operator Enhancement */
+.logic-select {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    border: 2px solid #4f46e5;
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.logic-select:hover {
+    background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+    border-color: #4338ca;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+}
+
+/* Query Section Headers */
+.query-section h4 {
+    margin: 0 0 16px 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #374151;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.query-section h4::before {
+    content: '';
+    width: 4px;
+    height: 20px;
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    border-radius: 2px;
+}
+
+/* Field Selector Enhancement */
+.field-selector {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.field-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.field-option:hover {
+    background: #f1f5f9;
+}
+
+.field-option input[type="checkbox"] {
+    accent-color: #4f46e5;
+    width: 16px;
+    height: 16px;
+}
+
+.field-option span {
+    font-weight: 600;
+    color: #374151;
+    font-size: 14px;
+}
+
+.field-type {
+    color: #9ca3af;
+    font-size: 12px;
+    font-style: italic;
+    font-weight: 400;
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+}
+
+/* Query Preview Enhancement */
+.query-preview {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.formula-preview code {
+    display: block;
+    background: #1f2937;
+    color: #f9fafb;
+    padding: 16px;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-all;
+    white-space: pre-wrap;
+    min-height: 24px;
+    border: 1px solid #374151;
+}
+
+.query-summary > div {
+    background: white;
+    padding: 12px 16px;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+    font-size: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.query-summary strong {
+    color: #374151;
+    font-weight: 600;
+}
+
+.query-summary span {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Condition Enhancement */
+.condition {
+    background: #ffffff;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    position: relative;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease;
+}
+
+.condition:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Sort & Limit Controls Enhancement */
+.sort-controls select,
+.limit-controls input {
+    padding: 10px 14px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    color: #374151;
+    transition: all 0.2s ease;
+}
+
+.sort-controls select:focus,
+.limit-controls input:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.sort-controls label,
+.limit-controls label {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+/* Accessibility Improvements */
+.search-input:focus,
+.field-select:focus,
+.operator-select:focus,
+.value-input-field:focus {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .query-builder {
+        background: #1f2937;
+        border-color: #374151;
+        color: #f9fafb;
+    }
+    
+    .query-section h4 {
+        color: #f9fafb;
+    }
+    
+    .field-selector {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    
+    .field-option span {
+        color: #f9fafb;
+    }
+    
+    .field-type {
+        background: #4b5563;
+        color: #d1d5db;
+    }
+    
+    .condition {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    
+    .search-input,
+    .field-select,
+    .operator-select,
+    .value-input-field {
+        background: #4b5563;
+        border-color: #6b7280;
+        color: #f9fafb;
+    }
+    
+    .multi-select-container {
+        background: #4b5563;
+        border-color: #6b7280;
+    }
+    
+    .multi-select-option span {
+        color: #f9fafb;
+    }
+    
+    .query-preview {
+        background: #374151;
+        border-color: #4b5563;
+    }
+    
+    .query-summary > div {
+        background: #4b5563;
+        border-color: #6b7280;
+    }
+    
+    .query-summary strong {
+        color: #f9fafb;
+    }
+    
+    .query-summary span {
+        color: #d1d5db;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .condition {
+        animation: none;
+    }
+    
+    .query-builder.loading::after {
+        animation: none;
+    }
+    
+    .consultant-form-overlay .loading-spinner {
+        animation: none;
+    }
+    
+    * {
+        transition: none !important;
+    }
+}
