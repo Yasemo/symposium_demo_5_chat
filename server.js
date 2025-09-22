@@ -188,6 +188,32 @@ async function handleApiRequest(req, url, db) {
       }
       break;
 
+    case "/tags":
+      if (method === "GET") {
+        return getTags(db);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return createTag(db, body);
+      }
+      break;
+
+    case "/cards/by-tags":
+      if (method === "POST") {
+        const body = await req.json();
+        return getCardsByTags(db, body);
+      }
+      break;
+
+    case "/selected-tags":
+      if (method === "GET") {
+        const symposiumId = url.searchParams.get("symposium_id");
+        const objectiveId = url.searchParams.get("objective_id");
+        return getSelectedTags(db, symposiumId, objectiveId);
+      } else if (method === "POST") {
+        const body = await req.json();
+        return setSelectedTags(db, body);
+      }
+      break;
 
     case "/objectives":
       if (method === "GET") {
@@ -311,6 +337,38 @@ async function handleApiRequest(req, url, db) {
       if (path === "/objective-tasks/reorder" && method === "PUT") {
         const body = await req.json();
         return reorderObjectiveTasks(db, body);
+      }
+      // Handle tag operations with ID in path
+      if (path.startsWith("/tags/") && path.split("/").length === 3) {
+        const tagId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return updateTag(db, tagId, body);
+        } else if (method === "DELETE") {
+          return deleteTag(db, tagId);
+        }
+      }
+      // Handle card tag operations
+      if (path.startsWith("/cards/") && path.split("/").length === 5 && path.split("/")[3] === "tags") {
+        const cardId = path.split("/")[2];
+        const tagId = path.split("/")[4];
+        console.log(`Card tag operation: ${method} ${path}, cardId: ${cardId}, tagId: ${tagId}`);
+        if (method === "POST") {
+          return addTagToCard(db, cardId, tagId);
+        } else if (method === "DELETE") {
+          return removeTagFromCard(db, cardId, tagId);
+        }
+      }
+      // Handle getting tags for a card
+      if (path.startsWith("/cards/") && path.split("/").length === 4 && path.split("/")[3] === "tags") {
+        const cardId = path.split("/")[2];
+        console.log(`Card tags operation: ${method} ${path}, cardId: ${cardId}`);
+        if (method === "GET") {
+          return getCardTags(db, cardId);
+        } else if (method === "POST") {
+          const body = await req.json();
+          return setCardTags(db, cardId, body);
+        }
       }
       // Handle symposium operations with ID in path
       if (path.startsWith("/symposiums/") && path.split("/").length === 3) {
@@ -579,7 +637,7 @@ function clearMessages(db, { symposium_id }) {
 }
 
 // Unified handleChat using the new consultant framework
-async function handleChat(db, { symposium_id, consultant_id, objective_id = null, message }) {
+async function handleChat(db, { symposium_id, consultant_id, objective_id = null, message, selected_tag_ids = [] }) {
   // Get symposium details
   const symposium = db.prepare("SELECT * FROM symposiums WHERE id = ?").get(symposium_id);
   
@@ -624,8 +682,8 @@ async function handleChat(db, { symposium_id, consultant_id, objective_id = null
     
     const visibleMessages = db.prepare(visibleMessagesQuery).all(...queryParams);
 
-    // Build context with objective information
-    const context = buildContext(db, symposium, consultantData, visibleMessages, message, objective);
+    // Build context with objective information and selected tags
+    const context = buildContext(db, symposium, consultantData, visibleMessages, message, objective, selected_tag_ids);
     
     // Log the full system prompt being sent to the LLM
     console.log('\n=== FULL SYSTEM PROMPT SENT TO LLM ===');
@@ -826,8 +884,8 @@ function getKnowledgeBaseCards(db, symposiumId = null) {
 
 function createKnowledgeBaseCard(db, { symposium_id = null, title, content, card_type = 'user_created', source_message_id = null }) {
   const stmt = db.prepare(`
-    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, is_global, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
+    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, is_visible, is_global, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 0, 1, datetime('now'), datetime('now'))
     RETURNING *
   `);
   return stmt.get(symposium_id, title, content, card_type, source_message_id);
@@ -840,10 +898,10 @@ function createCardFromMessage(db, { symposium_id, message_id, title }) {
     throw new Error('Message not found');
   }
 
-  // Create card with message content
+  // Create card with message content - default to hidden (is_visible = 0)
   const stmt = db.prepare(`
-    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, created_at, updated_at)
-    VALUES (?, ?, ?, 'consultant_response', ?, datetime('now'), datetime('now'))
+    INSERT INTO knowledge_base_cards (symposium_id, title, content, card_type, source_message_id, is_visible, is_global, created_at, updated_at)
+    VALUES (?, ?, ?, 'consultant_response', ?, 0, 1, datetime('now'), datetime('now'))
     RETURNING *
   `);
   return stmt.get(symposium_id, title, message.content, message_id);
@@ -949,7 +1007,7 @@ function deleteMessage(db, messageId) {
   };
 }
 
-function buildContext(db, symposium, consultant, messages, userMessage, objective = null) {
+function buildContext(db, symposium, consultant, messages, userMessage, objective = null, selectedTagIds = []) {
   let context = `You are participating in a symposium called "${symposium.name}". `;
   context += `Symposium description: ${symposium.description}\n\n`;
   
@@ -980,8 +1038,11 @@ function buildContext(db, symposium, consultant, messages, userMessage, objectiv
     }
   }
   
-  // Add global knowledge base context (now decoupled from symposiums)
-  const knowledgeBaseCards = db.prepare(`
+  // Collect all relevant knowledge base cards
+  let allRelevantCards = [];
+  
+  // Get manually visible cards
+  const visibleCards = db.prepare(`
     SELECT kb.*, m.content as source_message_content, c.name as source_consultant_name
     FROM knowledge_base_cards kb
     LEFT JOIN messages m ON kb.source_message_id = m.id
@@ -989,10 +1050,35 @@ function buildContext(db, symposium, consultant, messages, userMessage, objectiv
     WHERE kb.is_visible = 1 AND kb.is_global = 1
     ORDER BY kb.created_at
   `).all();
+  
+  allRelevantCards = [...visibleCards];
+  
+  // Get tagged cards if tags are selected
+  if (selectedTagIds && selectedTagIds.length > 0) {
+    const placeholders = selectedTagIds.map(() => '?').join(',');
+    const taggedCards = db.prepare(`
+      SELECT DISTINCT kb.*, m.content as source_message_content, c.name as source_consultant_name
+      FROM knowledge_base_cards kb
+      LEFT JOIN messages m ON kb.source_message_id = m.id
+      LEFT JOIN consultants c ON m.consultant_id = c.id
+      INNER JOIN card_tags ct ON kb.id = ct.card_id
+      WHERE ct.tag_id IN (${placeholders}) AND kb.is_global = 1
+      ORDER BY kb.created_at
+    `).all(...selectedTagIds);
+    
+    // Merge tagged cards with visible cards, avoiding duplicates
+    const existingCardIds = new Set(allRelevantCards.map(card => card.id));
+    taggedCards.forEach(card => {
+      if (!existingCardIds.has(card.id)) {
+        allRelevantCards.push(card);
+      }
+    });
+  }
 
-  if (knowledgeBaseCards.length > 0) {
+  // Add knowledge base context if we have relevant cards
+  if (allRelevantCards.length > 0) {
     context += "Knowledge Base Context:\n\n";
-    knowledgeBaseCards.forEach((card, index) => {
+    allRelevantCards.forEach((card, index) => {
       context += `--- CARD ${index + 1}: ${card.title} ---\n`;
       context += `Type: ${card.card_type}\n`;
       if (card.source_consultant_name) {
@@ -2191,6 +2277,310 @@ async function getConsultantTableSchema(db, { consultant_id, table_name }) {
   } catch (error) {
     console.error('Error fetching table schema:', error);
     throw new Error(`Failed to fetch table schema: ${error.message}`);
+  }
+}
+
+// Tag CRUD operations
+function getTags(db) {
+  const stmt = db.prepare("SELECT * FROM tags ORDER BY name");
+  return stmt.all();
+}
+
+function createTag(db, { name, color = '#4f46e5' }) {
+  if (!name || name.trim() === '') {
+    throw new Error('Tag name is required');
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO tags (name, color, created_at)
+    VALUES (?, ?, datetime('now'))
+    RETURNING *
+  `);
+  
+  try {
+    return stmt.get(name.trim(), color);
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      throw new Error('A tag with this name already exists');
+    }
+    throw error;
+  }
+}
+
+function updateTag(db, tagId, { name, color }) {
+  if (!tagId || isNaN(tagId)) {
+    throw new Error('Valid tag ID is required');
+  }
+
+  // Check if tag exists
+  const tag = db.prepare("SELECT * FROM tags WHERE id = ?").get(tagId);
+  if (!tag) {
+    throw new Error('Tag not found');
+  }
+
+  const stmt = db.prepare(`
+    UPDATE tags 
+    SET name = COALESCE(?, name), color = COALESCE(?, color)
+    WHERE id = ?
+    RETURNING *
+  `);
+  
+  try {
+    const result = stmt.get(
+      name !== undefined ? name.trim() : null,
+      color !== undefined ? color : null,
+      tagId
+    );
+    
+    if (!result) {
+      throw new Error('Failed to update tag');
+    }
+    
+    return result;
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      throw new Error('A tag with this name already exists');
+    }
+    throw error;
+  }
+}
+
+function deleteTag(db, tagId) {
+  if (!tagId || isNaN(tagId)) {
+    throw new Error('Valid tag ID is required');
+  }
+
+  // Check if tag exists
+  const tag = db.prepare("SELECT * FROM tags WHERE id = ?").get(tagId);
+  if (!tag) {
+    throw new Error('Tag not found');
+  }
+
+  // Delete the tag (CASCADE will handle card_tags relationships)
+  const stmt = db.prepare("DELETE FROM tags WHERE id = ?");
+  const result = stmt.run(tagId);
+
+  if (result.changes === 0) {
+    throw new Error('Failed to delete tag');
+  }
+
+  return {
+    success: true,
+    deletedTag: tag
+  };
+}
+
+// Card-Tag relationship operations
+function getCardTags(db, cardId) {
+  if (!cardId || isNaN(cardId)) {
+    throw new Error('Valid card ID is required');
+  }
+
+  const stmt = db.prepare(`
+    SELECT t.* FROM tags t
+    INNER JOIN card_tags ct ON t.id = ct.tag_id
+    WHERE ct.card_id = ?
+    ORDER BY t.name
+  `);
+  
+  return stmt.all(cardId);
+}
+
+function setCardTags(db, cardId, { tag_ids }) {
+  if (!cardId || isNaN(cardId)) {
+    throw new Error('Valid card ID is required');
+  }
+
+  if (!Array.isArray(tag_ids)) {
+    throw new Error('tag_ids must be an array');
+  }
+
+  // Check if card exists
+  const card = db.prepare("SELECT * FROM knowledge_base_cards WHERE id = ?").get(cardId);
+  if (!card) {
+    throw new Error('Card not found');
+  }
+
+  try {
+    // Remove all existing tags for this card
+    const deleteStmt = db.prepare("DELETE FROM card_tags WHERE card_id = ?");
+    deleteStmt.run(cardId);
+
+    // Add new tags
+    if (tag_ids.length > 0) {
+      const insertStmt = db.prepare(`
+        INSERT INTO card_tags (card_id, tag_id, created_at)
+        VALUES (?, ?, datetime('now'))
+      `);
+
+      for (const tagId of tag_ids) {
+        if (!isNaN(tagId)) {
+          insertStmt.run(cardId, tagId);
+        }
+      }
+    }
+
+    // Return updated tags for the card
+    return getCardTags(db, cardId);
+  } catch (error) {
+    console.error('Error setting card tags:', error);
+    throw new Error(`Failed to set card tags: ${error.message}`);
+  }
+}
+
+function addTagToCard(db, cardId, tagId) {
+  if (!cardId || isNaN(cardId)) {
+    throw new Error('Valid card ID is required');
+  }
+  
+  if (!tagId || isNaN(tagId)) {
+    throw new Error('Valid tag ID is required');
+  }
+
+  // Check if card and tag exist
+  const card = db.prepare("SELECT * FROM knowledge_base_cards WHERE id = ?").get(cardId);
+  if (!card) {
+    throw new Error('Card not found');
+  }
+
+  const tag = db.prepare("SELECT * FROM tags WHERE id = ?").get(tagId);
+  if (!tag) {
+    throw new Error('Tag not found');
+  }
+
+  const stmt = db.prepare(`
+    INSERT INTO card_tags (card_id, tag_id, created_at)
+    VALUES (?, ?, datetime('now'))
+  `);
+  
+  try {
+    stmt.run(cardId, tagId);
+    return { success: true };
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      throw new Error('This tag is already assigned to the card');
+    }
+    throw error;
+  }
+}
+
+function removeTagFromCard(db, cardId, tagId) {
+  if (!cardId || isNaN(cardId)) {
+    throw new Error('Valid card ID is required');
+  }
+  
+  if (!tagId || isNaN(tagId)) {
+    throw new Error('Valid tag ID is required');
+  }
+
+  const stmt = db.prepare("DELETE FROM card_tags WHERE card_id = ? AND tag_id = ?");
+  const result = stmt.run(cardId, tagId);
+
+  if (result.changes === 0) {
+    throw new Error('Tag assignment not found');
+  }
+
+  return { success: true };
+}
+
+function getCardsByTags(db, { tag_ids }) {
+  if (!Array.isArray(tag_ids) || tag_ids.length === 0) {
+    return [];
+  }
+
+  // Create placeholders for the IN clause
+  const placeholders = tag_ids.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`
+    SELECT DISTINCT kb.*, m.content as source_message_content, c.name as source_consultant_name
+    FROM knowledge_base_cards kb
+    LEFT JOIN messages m ON kb.source_message_id = m.id
+    LEFT JOIN consultants c ON m.consultant_id = c.id
+    INNER JOIN card_tags ct ON kb.id = ct.card_id
+    WHERE ct.tag_id IN (${placeholders}) AND kb.is_global = 1
+    ORDER BY kb.created_at DESC
+  `);
+  
+  return stmt.all(...tag_ids);
+}
+
+// Selected tags persistence operations
+function getSelectedTags(db, symposiumId, objectiveId = null) {
+  if (!symposiumId || isNaN(symposiumId)) {
+    throw new Error('Valid symposium ID is required');
+  }
+
+  let query = `
+    SELECT st.tag_id, t.name, t.color
+    FROM selected_tags st
+    INNER JOIN tags t ON st.tag_id = t.id
+    WHERE st.symposium_id = ?
+  `;
+  
+  const params = [symposiumId];
+  
+  if (objectiveId) {
+    query += ` AND st.objective_id = ?`;
+    params.push(objectiveId);
+  } else {
+    query += ` AND st.objective_id IS NULL`;
+  }
+  
+  query += ` ORDER BY t.name`;
+  
+  const stmt = db.prepare(query);
+  const rows = stmt.all(...params);
+  
+  return rows.map(row => ({
+    id: row.tag_id,
+    name: row.name,
+    color: row.color
+  }));
+}
+
+function setSelectedTags(db, { symposium_id, objective_id = null, tag_ids }) {
+  if (!symposium_id || isNaN(symposium_id)) {
+    throw new Error('Valid symposium ID is required');
+  }
+
+  if (!Array.isArray(tag_ids)) {
+    throw new Error('tag_ids must be an array');
+  }
+
+  try {
+    // Remove all existing selected tags for this symposium/objective combination
+    let deleteQuery = `DELETE FROM selected_tags WHERE symposium_id = ?`;
+    const deleteParams = [symposium_id];
+    
+    if (objective_id) {
+      deleteQuery += ` AND objective_id = ?`;
+      deleteParams.push(objective_id);
+    } else {
+      deleteQuery += ` AND objective_id IS NULL`;
+    }
+    
+    const deleteStmt = db.prepare(deleteQuery);
+    deleteStmt.run(...deleteParams);
+
+    // Add new selected tags
+    if (tag_ids.length > 0) {
+      const insertStmt = db.prepare(`
+        INSERT INTO selected_tags (symposium_id, objective_id, tag_id, created_at)
+        VALUES (?, ?, ?, datetime('now'))
+      `);
+
+      for (const tagId of tag_ids) {
+        if (!isNaN(tagId)) {
+          insertStmt.run(symposium_id, objective_id, tagId);
+        }
+      }
+    }
+
+    // Return updated selected tags
+    return getSelectedTags(db, symposium_id, objective_id);
+  } catch (error) {
+    console.error('Error setting selected tags:', error);
+    throw new Error(`Failed to set selected tags: ${error.message}`);
   }
 }
 

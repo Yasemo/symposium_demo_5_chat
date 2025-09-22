@@ -114,6 +114,17 @@
                         </button>
                     </div>
                     
+                    <!-- Tag Selector for Context -->
+                    <div class="tag-selector-section" id="tag-selector-section" style="display: none;">
+                        <div class="tag-selector-header">
+                            <h4>Add Knowledge Cards by Tags</h4>
+                            <span class="context-preview" id="context-preview">0 cards selected</span>
+                        </div>
+                        <div class="tag-selector-grid" id="tag-selector-grid">
+                            <!-- Available tags will be populated here -->
+                        </div>
+                    </div>
+                    
                     <!-- Message Input -->
                     <div class="message-input-wrapper">
                         <textarea id="message-input" placeholder="Create a symposium and add consultants to start chatting..." rows="3" disabled></textarea>
@@ -133,6 +144,19 @@
                         </button>
                     </div>
                 </div>
+                
+                <!-- Tag Management Section -->
+                <div class="tag-management-section">
+                    <div class="tag-creation-form">
+                        <input type="text" id="tag-name-input" placeholder="Tag name..." maxlength="50">
+                        <input type="color" id="tag-color-input" value="#4f46e5" title="Tag color">
+                        <button id="create-tag-btn" class="btn btn-secondary btn-small">Add Tag</button>
+                    </div>
+                    <div id="existing-tags" class="existing-tags">
+                        <!-- Tags will be populated here -->
+                    </div>
+                </div>
+                
                 <div id="knowledge-base-cards" class="knowledge-base-cards">
                     <div class="empty-state">
                         <p>No knowledge base cards yet</p>
@@ -288,6 +312,17 @@
                             </div>
                             <textarea id="card-content" rows="15" required placeholder="Enter your content here... (Markdown supported)"></textarea>
                             <div id="card-preview" class="card-preview" style="display: none;"></div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="card-tags">Tags</label>
+                        <div class="card-tag-selector">
+                            <div id="card-tag-grid" class="card-tag-grid">
+                                <!-- Available tags will be populated here -->
+                            </div>
+                            <div class="selected-tags-preview" id="selected-tags-preview">
+                                <!-- Selected tags will be shown here -->
+                            </div>
                         </div>
                     </div>
                     <div class="card-metadata" id="card-metadata" style="display: none;">

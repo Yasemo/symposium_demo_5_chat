@@ -2,6 +2,7 @@
 class ChatInterface {
     constructor() {
         this.isProcessing = false;
+        this.selectedTags = [];
         this.init();
     }
 
@@ -20,6 +21,9 @@ class ChatInterface {
         window.addEventListener('objectiveChanged', (e) => {
             this.onObjectiveChanged(e.detail);
         });
+
+        // Initialize tag selector when knowledge base is ready
+        this.initializeTagSelector();
     }
 
     bindEvents() {
@@ -60,9 +64,12 @@ class ChatInterface {
         if (symposium) {
             // Wait for objectives to be loaded, then load messages for active objective
             this.loadMessagesForCurrentContext();
+            // Load selected tags for this symposium
+            await this.loadSelectedTags();
         } else {
             this.showWelcomeMessage();
             this.disableInput();
+            this.selectedTags = [];
         }
     }
 
@@ -94,6 +101,8 @@ class ChatInterface {
     async onObjectiveChanged(objective) {
         // Load messages for the new objective
         await this.loadMessagesForCurrentContext();
+        // Reload selected tags for the new objective
+        await this.loadSelectedTags();
     }
 
     async loadMessagesForCurrentContext() {
@@ -243,7 +252,8 @@ class ChatInterface {
                 symposium_id: symposium.id,
                 consultant_id: consultant.id,
                 objective_id: objective?.id,
-                message: message
+                message: message,
+                selected_tag_ids: this.selectedTags
             });
 
             // Remove typing bubble
@@ -438,6 +448,169 @@ class ChatInterface {
         
         // Return color class based on index (1-indexed for CSS classes)
         return `consultant-${(consultantIndex % 10) + 1}`;
+    }
+
+    // Tag selector methods
+    async initializeTagSelector() {
+        // Wait for knowledge base to be initialized
+        setTimeout(() => {
+            this.loadTagSelector();
+        }, 1000);
+
+        // Listen for tag updates from knowledge base
+        window.addEventListener('tagsUpdated', () => {
+            this.loadTagSelector();
+        });
+    }
+
+    async loadTagSelector() {
+        try {
+            const tags = window.knowledgeBase?.getTags() || [];
+            await this.renderTagSelector(tags);
+            
+            // Show tag selector if there are tags
+            const tagSection = document.getElementById('tag-selector-section');
+            if (tags.length > 0) {
+                tagSection.style.display = 'block';
+            } else {
+                tagSection.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error loading tag selector:', error);
+        }
+    }
+
+    async renderTagSelector(tags) {
+        const container = document.getElementById('tag-selector-grid');
+        
+        if (tags.length === 0) {
+            container.innerHTML = '<p class="no-tags-message">No tags available. Create tags in the Knowledge Base first.</p>';
+            return;
+        }
+
+        // Get card counts for each tag
+        const tagButtons = await Promise.all(tags.map(async (tag) => {
+            const cards = await window.knowledgeBase?.getCardsByTags([tag.id]) || [];
+            return this.createTagSelectorButtonHTML(tag, cards.length);
+        }));
+
+        container.innerHTML = tagButtons.join('');
+        this.bindTagSelectorEvents();
+        this.updateContextPreview();
+    }
+
+    createTagSelectorButtonHTML(tag, cardCount) {
+        const isSelected = this.selectedTags.includes(tag.id);
+        return `
+            <div class="tag-selector-button ${isSelected ? 'active' : ''}" data-tag-id="${tag.id}">
+                <span class="tag-selector-badge" style="background-color: ${tag.color}">
+                    ${tag.name}
+                </span>
+                <span class="tag-card-count">${cardCount} cards</span>
+            </div>
+        `;
+    }
+
+    bindTagSelectorEvents() {
+        document.querySelectorAll('.tag-selector-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const tagId = parseInt(button.dataset.tagId);
+                this.toggleTagSelection(tagId);
+            });
+        });
+    }
+
+    async toggleTagSelection(tagId) {
+        const index = this.selectedTags.indexOf(tagId);
+        if (index > -1) {
+            // Remove tag
+            this.selectedTags.splice(index, 1);
+        } else {
+            // Add tag
+            this.selectedTags.push(tagId);
+        }
+
+        // Save selected tags to database
+        await this.saveSelectedTags();
+
+        // Re-render tag selector to update active states
+        this.loadTagSelector();
+    }
+
+    async updateContextPreview() {
+        const previewElement = document.getElementById('context-preview');
+        
+        if (this.selectedTags.length === 0) {
+            previewElement.textContent = '0 cards selected';
+            return;
+        }
+
+        try {
+            // Get all cards for selected tags (with deduplication)
+            const cards = await window.knowledgeBase?.getCardsByTags(this.selectedTags) || [];
+            previewElement.textContent = `${cards.length} cards selected`;
+        } catch (error) {
+            console.error('Error updating context preview:', error);
+            previewElement.textContent = 'Error loading cards';
+        }
+    }
+
+    getSelectedTags() {
+        return this.selectedTags;
+    }
+
+    async getSelectedTaggedCards() {
+        if (this.selectedTags.length === 0) {
+            return [];
+        }
+
+        try {
+            return await window.knowledgeBase?.getCardsByTags(this.selectedTags) || [];
+        } catch (error) {
+            console.error('Error getting selected tagged cards:', error);
+            return [];
+        }
+    }
+
+    // Selected tags persistence methods
+    async loadSelectedTags() {
+        const symposium = symposiumManager.getCurrentSymposium();
+        const objective = objectiveManager?.getActiveObjective();
+        
+        if (!symposium) {
+            this.selectedTags = [];
+            return;
+        }
+
+        try {
+            const selectedTags = await api.getSelectedTags(symposium.id, objective?.id);
+            this.selectedTags = selectedTags.map(tag => tag.id);
+            
+            // Re-render tag selector to show selected state
+            this.loadTagSelector();
+        } catch (error) {
+            console.error('Error loading selected tags:', error);
+            this.selectedTags = [];
+        }
+    }
+
+    async saveSelectedTags() {
+        const symposium = symposiumManager.getCurrentSymposium();
+        const objective = objectiveManager?.getActiveObjective();
+        
+        if (!symposium) {
+            return;
+        }
+
+        try {
+            await api.setSelectedTags({
+                symposium_id: symposium.id,
+                objective_id: objective?.id,
+                tag_ids: this.selectedTags
+            });
+        } catch (error) {
+            console.error('Error saving selected tags:', error);
+        }
     }
 }
 

@@ -2,12 +2,15 @@
 class KnowledgeBase {
     constructor() {
         this.cards = [];
+        this.tags = [];
         this.currentEditingCard = null;
+        this.currentEditingTag = null;
         this.init();
     }
 
     init() {
         this.bindEvents();
+        this.loadTags();
         
         // Listen for symposium changes
         window.addEventListener('symposiumChanged', (e) => {
@@ -24,9 +27,27 @@ class KnowledgeBase {
         const cardContent = document.getElementById('card-content');
         const wordCount = document.getElementById('word-count');
 
+        // Tag management events
+        const createTagBtn = document.getElementById('create-tag-btn');
+        const tagNameInput = document.getElementById('tag-name-input');
+        const tagColorInput = document.getElementById('tag-color-input');
+
         // Add card button
         addCardBtn.addEventListener('click', () => {
             this.openCardModal();
+        });
+
+        // Tag creation
+        createTagBtn.addEventListener('click', () => {
+            this.handleCreateTag();
+        });
+
+        // Enter key to create tag
+        tagNameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.handleCreateTag();
+            }
         });
 
         // Form submission
@@ -86,9 +107,14 @@ class KnowledgeBase {
             this.cards = await api.getKnowledgeBaseCards();
             this.renderCards();
         } catch (error) {
-            console.error('Error loading knowledge base cards:', error);
-            utils.showError('Failed to load knowledge base cards');
+            console.error('Error creating tag:', error);
+            alert('Failed to create tag: ' + error.message);
         }
+    }
+
+    // Dispatch tags updated event
+    dispatchTagsUpdated() {
+        window.dispatchEvent(new CustomEvent('tagsUpdated'));
     }
 
     renderCards() {
@@ -181,7 +207,7 @@ class KnowledgeBase {
         return content.substring(0, maxLength) + '...';
     }
 
-    openCardModal(cardId = null) {
+    async openCardModal(cardId = null) {
         const modal = document.getElementById('knowledge-card-modal');
         const titleElement = document.getElementById('card-modal-title');
         const titleInput = document.getElementById('card-title');
@@ -204,6 +230,9 @@ class KnowledgeBase {
                 card.source_consultant_name ? `${card.source_consultant_name} message` : 'User created';
             document.getElementById('card-created').textContent = utils.formatTime(card.created_at);
             document.getElementById('card-updated').textContent = utils.formatTime(card.updated_at);
+
+            // Load existing tags for this card
+            await this.loadCardTagsForModal(cardId);
         } else {
             // Create new card
             this.currentEditingCard = { card_type: 'user_created' };
@@ -211,8 +240,13 @@ class KnowledgeBase {
             titleInput.value = '';
             contentInput.value = '';
             metadataDiv.style.display = 'none';
+
+            // Clear tag selection for new card
+            this.selectedCardTags = [];
         }
 
+        // Render tag selector
+        this.renderCardTagSelector();
         this.updateWordCount();
         modal.classList.add('active');
         titleInput.focus();
@@ -234,55 +268,8 @@ class KnowledgeBase {
     }
 
     async saveCard() {
-        const titleInput = document.getElementById('card-title');
-        const contentInput = document.getElementById('card-content');
-        
-        const title = titleInput.value.trim();
-        const content = contentInput.value.trim();
-
-        if (!title || !content) {
-            utils.showError('Please fill in both title and content');
-            return;
-        }
-
-        try {
-            utils.showLoading();
-            const symposium = symposiumManager.getCurrentSymposium();
-
-            if (this.currentEditingCard.id) {
-                // Update existing card
-                const updatedCard = await api.updateKnowledgeBaseCard(this.currentEditingCard.id, {
-                    title,
-                    content
-                });
-                
-                // Update local card
-                const cardIndex = this.cards.findIndex(c => c.id === this.currentEditingCard.id);
-                if (cardIndex !== -1) {
-                    this.cards[cardIndex] = { ...this.cards[cardIndex], ...updatedCard };
-                }
-            } else {
-                // Create new card
-                const newCard = await api.createKnowledgeBaseCard({
-                    symposium_id: symposium.id,
-                    title,
-                    content,
-                    card_type: 'user_created'
-                });
-                
-                this.cards.unshift(newCard);
-            }
-
-            this.renderCards();
-            this.closeCardModal();
-            utils.showSuccess('Card saved successfully!');
-
-        } catch (error) {
-            console.error('Error saving card:', error);
-            utils.showError('Failed to save card');
-        } finally {
-            utils.hideLoading();
-        }
+        // Use the new method that handles tags
+        await this.saveCardWithTags();
     }
 
     async autoSave() {
@@ -465,6 +452,392 @@ class KnowledgeBase {
 
     getVisibleCards() {
         return this.cards.filter(card => card.is_visible);
+    }
+
+    // Tag management methods
+    async loadTags() {
+        try {
+            this.tags = await api.getTags();
+            this.renderTagManagement();
+        } catch (error) {
+            console.error('Error loading tags:', error);
+            utils.showError('Failed to load tags');
+        }
+    }
+
+    renderTagManagement() {
+        const container = document.getElementById('existing-tags');
+        
+        if (this.tags.length === 0) {
+            container.innerHTML = '<p class="empty-state-small">No tags created yet</p>';
+            return;
+        }
+
+        container.innerHTML = this.tags.map(tag => this.createTagHTML(tag)).join('');
+        this.bindTagEvents();
+    }
+
+    createTagHTML(tag) {
+        return `
+            <div class="tag-item" data-tag-id="${tag.id}">
+                <span class="tag-badge" style="background-color: ${tag.color}">
+                    ${tag.name}
+                </span>
+                <div class="tag-controls">
+                    <button class="tag-control-btn edit-tag-btn" title="Edit tag">✏️</button>
+                    <button class="tag-control-btn delete-tag-btn" title="Delete tag">🗑️</button>
+                </div>
+            </div>
+        `;
+    }
+
+    bindTagEvents() {
+        // Edit tag buttons
+        document.querySelectorAll('.edit-tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tagId = parseInt(btn.closest('.tag-item').dataset.tagId);
+                this.handleEditTag(tagId);
+            });
+        });
+
+        // Delete tag buttons
+        document.querySelectorAll('.delete-tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tagId = parseInt(btn.closest('.tag-item').dataset.tagId);
+                this.deleteTag(tagId);
+            });
+        });
+    }
+
+    async handleCreateTag() {
+        const nameInput = document.getElementById('tag-name-input');
+        const colorInput = document.getElementById('tag-color-input');
+        
+        const name = nameInput.value.trim();
+        const color = colorInput.value;
+
+        if (!name) {
+            utils.showError('Please enter a tag name');
+            nameInput.focus();
+            return;
+        }
+
+        const newTag = await this.createTag(name, color);
+        if (newTag) {
+            // Clear inputs
+            nameInput.value = '';
+            colorInput.value = '#4f46e5';
+            nameInput.focus();
+        }
+    }
+
+    handleEditTag(tagId) {
+        const tag = this.tags.find(t => t.id === tagId);
+        if (!tag) return;
+
+        const newName = prompt('Edit tag name:', tag.name);
+        if (newName === null) return; // User cancelled
+        
+        if (!newName.trim()) {
+            utils.showError('Tag name cannot be empty');
+            return;
+        }
+
+        // For now, keep the same color. We could add a color picker modal later
+        this.updateTag(tagId, newName.trim(), tag.color);
+    }
+
+    async createTag(name, color = '#4f46e5') {
+        if (!name || name.trim() === '') {
+            utils.showError('Tag name is required');
+            return;
+        }
+
+        try {
+            const newTag = await api.createTag({
+                name: name.trim(),
+                color: color
+            });
+            
+            this.tags.push(newTag);
+            this.renderTagManagement();
+            this.dispatchTagsUpdated();
+            utils.showSuccess('Tag created successfully!');
+            
+            return newTag;
+        } catch (error) {
+            console.error('Error creating tag:', error);
+            utils.showError('Failed to create tag: ' + error.message);
+        }
+    }
+
+    async updateTag(tagId, name, color) {
+        try {
+            const updatedTag = await api.updateTag(tagId, {
+                name: name.trim(),
+                color: color
+            });
+            
+            const tagIndex = this.tags.findIndex(t => t.id === tagId);
+            if (tagIndex !== -1) {
+                this.tags[tagIndex] = updatedTag;
+            }
+            
+            this.renderTagManagement();
+            this.renderCards(); // Re-render cards to show updated tags
+            this.dispatchTagsUpdated();
+            utils.showSuccess('Tag updated successfully!');
+            
+            return updatedTag;
+        } catch (error) {
+            console.error('Error updating tag:', error);
+            utils.showError('Failed to update tag: ' + error.message);
+        }
+    }
+
+    async deleteTag(tagId) {
+        const tag = this.tags.find(t => t.id === tagId);
+        if (!tag) return;
+
+        if (!confirm(`Are you sure you want to delete the tag "${tag.name}"? This will remove it from all cards.`)) {
+            return;
+        }
+
+        try {
+            await api.deleteTag(tagId);
+            
+            this.tags = this.tags.filter(t => t.id !== tagId);
+            this.renderTagManagement();
+            this.renderCards(); // Re-render cards to remove deleted tags
+            this.dispatchTagsUpdated();
+            utils.showSuccess('Tag deleted successfully!');
+        } catch (error) {
+            console.error('Error deleting tag:', error);
+            utils.showError('Failed to delete tag: ' + error.message);
+        }
+    }
+
+    async loadCardTags(cardId) {
+        try {
+            return await api.getCardTags(cardId);
+        } catch (error) {
+            console.error('Error loading card tags:', error);
+            return [];
+        }
+    }
+
+    async setCardTags(cardId, tagIds) {
+        try {
+            const updatedTags = await api.setCardTags(cardId, { tag_ids: tagIds });
+            
+            // Update local card data
+            const card = this.cards.find(c => c.id === cardId);
+            if (card) {
+                card.tags = updatedTags;
+            }
+            
+            this.renderCards();
+            return updatedTags;
+        } catch (error) {
+            console.error('Error setting card tags:', error);
+            utils.showError('Failed to update card tags');
+            return [];
+        }
+    }
+
+    getTags() {
+        return this.tags;
+    }
+
+    getTagById(tagId) {
+        return this.tags.find(t => t.id === tagId);
+    }
+
+    async getCardsByTags(tagIds) {
+        if (!Array.isArray(tagIds) || tagIds.length === 0) {
+            return [];
+        }
+
+        try {
+            return await api.getCardsByTags({ tag_ids: tagIds });
+        } catch (error) {
+            console.error('Error getting cards by tags:', error);
+            return [];
+        }
+    }
+
+    // Card tag selector methods
+    async loadCardTagsForModal(cardId) {
+        try {
+            const cardTags = await this.loadCardTags(cardId);
+            this.selectedCardTags = cardTags.map(tag => tag.id);
+        } catch (error) {
+            console.error('Error loading card tags for modal:', error);
+            this.selectedCardTags = [];
+        }
+    }
+
+    renderCardTagSelector() {
+        const container = document.getElementById('card-tag-grid');
+        const previewContainer = document.getElementById('selected-tags-preview');
+        
+        if (this.tags.length === 0) {
+            container.innerHTML = '<p class="no-tags-message">No tags available. Create tags first to assign them to cards.</p>';
+            previewContainer.innerHTML = '';
+            return;
+        }
+
+        // Render available tags
+        container.innerHTML = this.tags.map(tag => this.createCardTagOptionHTML(tag)).join('');
+        
+        // Render selected tags preview
+        this.renderSelectedTagsPreview();
+        
+        // Bind events
+        this.bindCardTagEvents();
+    }
+
+    createCardTagOptionHTML(tag) {
+        const isSelected = this.selectedCardTags && this.selectedCardTags.includes(tag.id);
+        return `
+            <div class="card-tag-option ${isSelected ? 'selected' : ''}" data-tag-id="${tag.id}">
+                <span class="card-tag-option-badge" style="background-color: ${tag.color}">
+                    ${tag.name}
+                </span>
+            </div>
+        `;
+    }
+
+    renderSelectedTagsPreview() {
+        const previewContainer = document.getElementById('selected-tags-preview');
+        
+        if (!this.selectedCardTags || this.selectedCardTags.length === 0) {
+            previewContainer.innerHTML = '<p class="no-tags-message">No tags selected</p>';
+            return;
+        }
+
+        const selectedTags = this.selectedCardTags.map(tagId => this.getTagById(tagId)).filter(Boolean);
+        
+        previewContainer.innerHTML = `
+            <h5>Selected Tags (${selectedTags.length})</h5>
+            <div class="selected-tags-list">
+                ${selectedTags.map(tag => this.createSelectedTagHTML(tag)).join('')}
+            </div>
+        `;
+    }
+
+    createSelectedTagHTML(tag) {
+        return `
+            <div class="selected-tag-item">
+                <span class="selected-tag-badge" style="background-color: ${tag.color}">
+                    ${tag.name}
+                </span>
+                <button class="remove-selected-tag" data-tag-id="${tag.id}" title="Remove tag">×</button>
+            </div>
+        `;
+    }
+
+    bindCardTagEvents() {
+        // Tag option click events
+        document.querySelectorAll('.card-tag-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                const tagId = parseInt(option.dataset.tagId);
+                this.toggleCardTagSelection(tagId);
+            });
+        });
+
+        // Remove tag events
+        document.querySelectorAll('.remove-selected-tag').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tagId = parseInt(btn.dataset.tagId);
+                this.toggleCardTagSelection(tagId);
+            });
+        });
+    }
+
+    toggleCardTagSelection(tagId) {
+        if (!this.selectedCardTags) {
+            this.selectedCardTags = [];
+        }
+
+        const index = this.selectedCardTags.indexOf(tagId);
+        if (index > -1) {
+            // Remove tag
+            this.selectedCardTags.splice(index, 1);
+        } else {
+            // Add tag
+            this.selectedCardTags.push(tagId);
+        }
+
+        // Re-render the tag selector
+        this.renderCardTagSelector();
+    }
+
+    async saveCardWithTags() {
+        const titleInput = document.getElementById('card-title');
+        const contentInput = document.getElementById('card-content');
+        
+        const title = titleInput.value.trim();
+        const content = contentInput.value.trim();
+
+        if (!title || !content) {
+            utils.showError('Please fill in both title and content');
+            return;
+        }
+
+        try {
+            utils.showLoading();
+            const symposium = symposiumManager.getCurrentSymposium();
+            let cardId;
+
+            if (this.currentEditingCard.id) {
+                // Update existing card
+                const updatedCard = await api.updateKnowledgeBaseCard(this.currentEditingCard.id, {
+                    title,
+                    content
+                });
+                
+                cardId = this.currentEditingCard.id;
+                
+                // Update local card
+                const cardIndex = this.cards.findIndex(c => c.id === cardId);
+                if (cardIndex !== -1) {
+                    this.cards[cardIndex] = { ...this.cards[cardIndex], ...updatedCard };
+                }
+            } else {
+                // Create new card
+                const newCard = await api.createKnowledgeBaseCard({
+                    symposium_id: symposium.id,
+                    title,
+                    content,
+                    card_type: 'user_created'
+                });
+                
+                cardId = newCard.id;
+                this.cards.unshift(newCard);
+            }
+
+            // Save tags if any are selected
+            if (this.selectedCardTags && this.selectedCardTags.length > 0) {
+                await this.setCardTags(cardId, this.selectedCardTags);
+            } else if (this.currentEditingCard.id) {
+                // Clear tags if none selected for existing card
+                await this.setCardTags(cardId, []);
+            }
+
+            this.renderCards();
+            this.closeCardModal();
+            utils.showSuccess('Card saved successfully!');
+
+        } catch (error) {
+            console.error('Error saving card:', error);
+            utils.showError('Failed to save card');
+        } finally {
+            utils.hideLoading();
+        }
     }
 }
 

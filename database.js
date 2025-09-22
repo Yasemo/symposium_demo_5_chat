@@ -182,5 +182,28 @@ export async function initDatabase(db) {
     )
   `);
 
+  // Create tags table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL DEFAULT '#4f46e5',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  // Create card-tag relationships table (many-to-many)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS card_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (card_id) REFERENCES knowledge_base_cards (id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
+      UNIQUE(card_id, tag_id)
+    )
+  `);
+
   console.log("Database initialized successfully");
 }

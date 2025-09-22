@@ -427,5 +427,61 @@ export async function initDatabase(db) {
     db.exec(consultantDynamicContextTable);
   }
 
+  // Create tags table
+  const tagsTable = `
+    CREATE TABLE IF NOT EXISTS tags (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      name TEXT NOT NULL UNIQUE,
+      color TEXT NOT NULL DEFAULT '#4f46e5',
+      created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'}
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(tagsTable);
+  } else {
+    db.exec(tagsTable);
+  }
+
+  // Create card-tag relationships table (many-to-many)
+  const cardTagsTable = `
+    CREATE TABLE IF NOT EXISTS card_tags (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      card_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      FOREIGN KEY (card_id) REFERENCES knowledge_base_cards (id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
+      UNIQUE(card_id, tag_id)
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(cardTagsTable);
+  } else {
+    db.exec(cardTagsTable);
+  }
+
+  // Create selected tags table for chat interface persistence
+  const selectedTagsTable = `
+    CREATE TABLE IF NOT EXISTS selected_tags (
+      id ${isPostgreSQL ? 'SERIAL PRIMARY KEY' : 'INTEGER PRIMARY KEY AUTOINCREMENT'},
+      symposium_id INTEGER NOT NULL,
+      objective_id INTEGER,
+      tag_id INTEGER NOT NULL,
+      created_at ${isPostgreSQL ? 'TIMESTAMP DEFAULT NOW()' : 'TEXT NOT NULL DEFAULT (datetime(\'now\'))'},
+      FOREIGN KEY (symposium_id) REFERENCES symposiums (id) ON DELETE CASCADE,
+      FOREIGN KEY (objective_id) REFERENCES objectives (id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE,
+      UNIQUE(symposium_id, objective_id, tag_id)
+    )
+  `;
+  
+  if (isPostgreSQL) {
+    await db.exec(selectedTagsTable);
+  } else {
+    db.exec(selectedTagsTable);
+  }
+
   console.log(`Database initialized successfully (${db.type})`);
 }

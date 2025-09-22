@@ -314,6 +314,78 @@ class API {
             body: data,
         });
     }
+
+    // Tag endpoints
+    async getTags() {
+        return this.request('/tags');
+    }
+
+    async createTag(data) {
+        return this.request('/tags', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async updateTag(tagId, data) {
+        return this.request(`/tags/${tagId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async deleteTag(tagId) {
+        return this.request(`/tags/${tagId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    // Card-Tag relationship endpoints
+    async getCardTags(cardId) {
+        return this.request(`/cards/${cardId}/tags`);
+    }
+
+    async setCardTags(cardId, data) {
+        return this.request(`/cards/${cardId}/tags`, {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    async addTagToCard(cardId, tagId) {
+        return this.request(`/cards/${cardId}/tags/${tagId}`, {
+            method: 'POST',
+        });
+    }
+
+    async removeTagFromCard(cardId, tagId) {
+        return this.request(`/cards/${cardId}/tags/${tagId}`, {
+            method: 'DELETE',
+        });
+    }
+
+    async getCardsByTags(data) {
+        return this.request('/cards/by-tags', {
+            method: 'POST',
+            body: data,
+        });
+    }
+
+    // Selected tags persistence endpoints
+    async getSelectedTags(symposiumId, objectiveId = null) {
+        let url = `/selected-tags?symposium_id=${symposiumId}`;
+        if (objectiveId) {
+            url += `&objective_id=${objectiveId}`;
+        }
+        return this.request(url);
+    }
+
+    async setSelectedTags(data) {
+        return this.request('/selected-tags', {
+            method: 'POST',
+            body: data,
+        });
+    }
 }
 
 // Create global API instance

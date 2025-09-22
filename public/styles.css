@@ -426,7 +426,7 @@ body {
     padding: 1.5rem;
     overflow-y: auto;
     background: #fafafa;
-    max-height: calc(100vh - 390px);
+    max-height: calc(100vh - 500px);
     min-height: 200px;
 }
 
@@ -3160,6 +3160,425 @@ body {
     border-color: #b91c1c;
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+}
+
+/* Tag Management Styles */
+.tag-management-section {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+}
+
+.tag-creation-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+#tag-name-input {
+    flex: 1;
+    min-width: 120px;
+    padding: 0.5rem;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: border-color 0.2s ease;
+}
+
+#tag-name-input:focus {
+    outline: none;
+    border-color: #4f46e5;
+}
+
+#tag-color-input {
+    width: 40px;
+    height: 36px;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    background: none;
+    transition: border-color 0.2s ease;
+}
+
+#tag-color-input:hover {
+    border-color: #d1d5db;
+}
+
+#create-tag-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.existing-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 2rem;
+    align-items: flex-start;
+}
+
+.empty-state-small {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.85rem;
+    margin: 0;
+    padding: 0.5rem 0;
+}
+
+.tag-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 0.25rem 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.tag-item:hover {
+    background: #f1f5f9;
+    border-color: #d1d5db;
+}
+
+.tag-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    min-width: fit-content;
+}
+
+.tag-controls {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.tag-item:hover .tag-controls {
+    opacity: 1;
+}
+
+.tag-control-btn {
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 3px;
+    padding: 0.2rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.tag-control-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+    transform: scale(1.1);
+}
+
+.delete-tag-btn:hover {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+}
+
+/* Card Tags Display */
+.card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.card-tag-badge {
+    display: inline-block;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* Tag Selector Styles (for chat input) */
+.tag-selector-section {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.tag-selector-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.tag-selector-header h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.context-preview {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.tag-selector-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tag-selector-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #f8fafc;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+    user-select: none;
+}
+
+.tag-selector-button:hover {
+    background: #f1f5f9;
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+}
+
+.tag-selector-button.active {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+}
+
+.tag-selector-button.active .tag-selector-badge {
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.tag-selector-badge {
+    display: inline-block;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.2s ease;
+}
+
+.tag-card-count {
+    font-size: 0.75rem;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.tag-selector-button.active .tag-card-count {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+/* Responsive Tag Styles */
+@media (max-width: 768px) {
+    .tag-creation-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    #tag-name-input {
+        min-width: auto;
+    }
+    
+    .tag-creation-form > * {
+        width: 100%;
+    }
+    
+    #tag-color-input {
+        width: 100%;
+        height: 40px;
+    }
+    
+    .existing-tags {
+        gap: 0.25rem;
+    }
+    
+    .tag-item {
+        font-size: 0.85rem;
+    }
+    
+    .tag-selector-grid {
+        gap: 0.25rem;
+    }
+    
+    .tag-selector-button {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* Knowledge Base Collapsed State - Hide Tag Management */
+.knowledge-base.collapsed .tag-management-section {
+    display: none;
+}
+
+/* Card Tag Selector Styles */
+.card-tag-selector {
+    background: #f8fafc;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.card-tag-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    min-height: 2rem;
+}
+
+.card-tag-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.85rem;
+    user-select: none;
+}
+
+.card-tag-option:hover {
+    background: #f1f5f9;
+    border-color: #d1d5db;
+    transform: translateY(-1px);
+}
+
+.card-tag-option.selected {
+    background: #eff6ff;
+    border-color: #3b82f6;
+    color: #1d4ed8;
+}
+
+.card-tag-option.selected .card-tag-option-badge {
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.card-tag-option-badge {
+    display: inline-block;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+    transition: box-shadow 0.2s ease;
+}
+
+.selected-tags-preview {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1rem;
+    min-height: 2rem;
+}
+
+.selected-tags-preview h5 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #374151;
+}
+
+.selected-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.selected-tag-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.selected-tag-badge {
+    display: inline-block;
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.remove-selected-tag {
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 2px;
+    padding: 0.1rem 0.2rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s ease;
+    color: #6b7280;
+}
+
+.remove-selected-tag:hover {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+}
+
+.no-tags-message {
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 1rem;
+}
+
+/* Responsive Card Tag Selector */
+@media (max-width: 768px) {
+    .card-tag-grid {
+        gap: 0.25rem;
+    }
+    
+    .card-tag-option {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
+    }
+    
+    .selected-tag-item {
+        font-size: 0.75rem;
+    }
 }
 
 /* Enhanced Modal Styles for Management */
