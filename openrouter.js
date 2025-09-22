@@ -25,7 +25,7 @@ export async function getOpenRouterModels() {
     
     // Filter and format models with pricing information
     const models = data.data
-      .filter(model => !model.id.includes("free") && model.pricing) // Filter out free models and ensure pricing exists
+      .filter(model => model.pricing) // Ensure pricing exists (allow free models with pricing)
       .map(model => ({
         id: model.id,
         name: model.name || model.id,

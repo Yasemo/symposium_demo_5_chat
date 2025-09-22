@@ -982,15 +982,24 @@ function buildContext(db, symposium, consultant, messages, userMessage, objectiv
   
   // Add global knowledge base context (now decoupled from symposiums)
   const knowledgeBaseCards = db.prepare(`
-    SELECT title, content FROM knowledge_base_cards 
-    WHERE is_visible = 1 AND is_global = 1
-    ORDER BY created_at
+    SELECT kb.*, m.content as source_message_content, c.name as source_consultant_name
+    FROM knowledge_base_cards kb
+    LEFT JOIN messages m ON kb.source_message_id = m.id
+    LEFT JOIN consultants c ON m.consultant_id = c.id
+    WHERE kb.is_visible = 1 AND kb.is_global = 1
+    ORDER BY kb.created_at
   `).all();
-  
+
   if (knowledgeBaseCards.length > 0) {
-    context += "Knowledge Base Context:\n";
-    knowledgeBaseCards.forEach(card => {
-      context += `${card.title}: ${card.content}\n`;
+    context += "Knowledge Base Context:\n\n";
+    knowledgeBaseCards.forEach((card, index) => {
+      context += `--- CARD ${index + 1}: ${card.title} ---\n`;
+      context += `Type: ${card.card_type}\n`;
+      if (card.source_consultant_name) {
+        context += `Source: ${card.source_consultant_name}\n`;
+      }
+      context += `Created: ${new Date(card.created_at).toLocaleDateString()}\n`;
+      context += `Content:\n${card.content}\n\n`;
     });
     context += "\n";
   }
