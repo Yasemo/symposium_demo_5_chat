@@ -411,6 +411,7 @@ body {
     display: flex;
     flex-direction: column;
     background: white;
+    height: calc(100vh - 86px);
 }
 
 .chat-header {
@@ -2194,7 +2195,7 @@ body {
 
 /* Knowledge Base Modal Styles */
 .modal-large {
-    max-width: 800px;
+    max-width: 900px;
     width: 95%;
 }
 
@@ -2233,7 +2234,7 @@ body {
     border: 2px solid #e5e7eb;
     border-radius: 0 0 6px 6px;
     border-top: none;
-    padding: 1rem;
+    padding: 3rem;
     min-height: 300px;
     background: white;
     overflow-y: auto;
@@ -3558,10 +3559,11 @@ body {
 
 .card-tag-grid {
     display: flex;
-    flex-wrap: wrap;
     gap: 0.5rem;
     margin-bottom: 1rem;
     min-height: 2rem;
+    overflow-x: scroll;
+    padding-bottom: 1rem;
 }
 
 .card-tag-option {
@@ -4501,6 +4503,7 @@ body {
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    max-height: 100px;
 }
 
 .kb-modal-card-tags {
@@ -4727,4 +4730,76 @@ body {
 /* Hide expand button when collapsed */
 .knowledge-base.collapsed .knowledge-base-expand-btn {
     display: none;
+}
+
+/* Airtable Results Table Styles */
+.airtable-results-container {
+    margin: 1rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+}
+
+.airtable-results-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    font-size: 0.9rem;
+}
+
+.airtable-results-table th {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    font-weight: 600;
+    padding: 1rem 0.75rem;
+    text-align: left;
+    border-bottom: 2px solid #3730a3;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+}
+
+.airtable-results-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+    line-height: 1.4;
+}
+
+.airtable-results-table tr:nth-child(even) {
+    background: #f8fafc;
+}
+
+.airtable-results-table tr:hover {
+    background: #f1f5f9;
+}
+
+.airtable-results-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+    .airtable-results-container {
+        overflow-x: auto;
+        margin: 0.5rem -1rem;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+    }
+    
+    .airtable-results-table {
+        min-width: 600px;
+        font-size: 0.8rem;
+    }
+    
+    .airtable-results-table th,
+    .airtable-results-table td {
+        padding: 0.5rem;
+    }
+    
+    .airtable-results-table th {
+        font-size: 0.75rem;
+    }
 }

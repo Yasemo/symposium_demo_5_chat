@@ -227,7 +227,28 @@ class KnowledgeBase {
 
     truncateContent(content, maxLength) {
         if (content.length <= maxLength) return content;
+        
+        // If content contains HTML tags, we need to be more careful
+        if (content.includes('<') && content.includes('>')) {
+            return this.truncateHtmlContent(content, maxLength);
+        }
+        
+        // For plain text, simple truncation is fine
         return content.substring(0, maxLength) + '...';
+    }
+
+    truncateHtmlContent(content, maxLength) {
+        // Strip HTML tags for length calculation and display
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        const textContent = tempDiv.textContent || tempDiv.innerText || '';
+        
+        if (textContent.length <= maxLength) {
+            return textContent;
+        }
+        
+        // Truncate the text content and add ellipsis
+        return textContent.substring(0, maxLength) + '...';
     }
 
     async openCardModal(cardId = null) {
@@ -236,14 +257,16 @@ class KnowledgeBase {
         const titleInput = document.getElementById('card-title');
         const contentInput = document.getElementById('card-content');
         const metadataDiv = document.getElementById('card-metadata');
+        const previewDiv = document.getElementById('card-preview');
+        const previewToggle = document.getElementById('preview-toggle');
 
         if (cardId) {
-            // Edit existing card
+            // Edit existing card - default to preview mode
             const card = this.cards.find(c => c.id === cardId);
             if (!card) return;
 
             this.currentEditingCard = card;
-            titleElement.textContent = 'Edit Knowledge Card';
+            titleElement.textContent = 'View Knowledge Card';
             titleInput.value = card.title;
             contentInput.value = card.content;
 
@@ -256,8 +279,11 @@ class KnowledgeBase {
 
             // Load existing tags for this card
             await this.loadCardTagsForModal(cardId);
+
+            // Default to preview mode for existing cards
+            await this.showPreviewMode();
         } else {
-            // Create new card
+            // Create new card - start in edit mode
             this.currentEditingCard = { card_type: 'user_created' };
             titleElement.textContent = 'Create Knowledge Card';
             titleInput.value = '';
@@ -266,13 +292,85 @@ class KnowledgeBase {
 
             // Clear tag selection for new card
             this.selectedCardTags = [];
+
+            // Start in edit mode for new cards
+            this.showEditMode();
         }
 
         // Render tag selector
         this.renderCardTagSelector();
         this.updateWordCount();
         modal.classList.add('active');
-        titleInput.focus();
+        
+        // Focus appropriate element based on mode
+        if (cardId) {
+            // For existing cards in preview mode, don't focus anything initially
+        } else {
+            // For new cards, focus the title input
+            titleInput.focus();
+        }
+    }
+
+    async showPreviewMode() {
+        const previewDiv = document.getElementById('card-preview');
+        const contentTextarea = document.getElementById('card-content');
+        const previewToggle = document.getElementById('preview-toggle');
+        const titleElement = document.getElementById('card-modal-title');
+        
+        const content = contentTextarea.value;
+        try {
+            // Clear the preview div first to prevent DOM corruption
+            previewDiv.innerHTML = '';
+            
+            // Use enhanced markdown renderer
+            if (window.enhancedRenderer) {
+                const renderedContent = await window.enhancedRenderer.render(content);
+                // Create a temporary container to safely set the content
+                const tempContainer = document.createElement('div');
+                tempContainer.innerHTML = renderedContent;
+                // Move all children to the preview div
+                while (tempContainer.firstChild) {
+                    previewDiv.appendChild(tempContainer.firstChild);
+                }
+            } else {
+                // Fallback to basic marked
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true,
+                    headerIds: false,
+                    mangle: false,
+                });
+                previewDiv.innerHTML = marked.parse(content);
+            }
+        } catch (error) {
+            console.error('Preview rendering error:', error);
+            previewDiv.innerHTML = content.replace(/\n/g, '<br>');
+        }
+        
+        previewDiv.style.display = 'block';
+        contentTextarea.style.display = 'none';
+        previewToggle.textContent = 'Edit';
+        
+        // Update modal title to indicate view mode
+        if (this.currentEditingCard && this.currentEditingCard.id) {
+            titleElement.textContent = 'View Knowledge Card';
+        }
+    }
+
+    showEditMode() {
+        const previewDiv = document.getElementById('card-preview');
+        const contentTextarea = document.getElementById('card-content');
+        const previewToggle = document.getElementById('preview-toggle');
+        const titleElement = document.getElementById('card-modal-title');
+        
+        previewDiv.style.display = 'none';
+        contentTextarea.style.display = 'block';
+        previewToggle.textContent = 'Preview';
+        
+        // Update modal title to indicate edit mode
+        if (this.currentEditingCard && this.currentEditingCard.id) {
+            titleElement.textContent = 'Edit Knowledge Card';
+        }
     }
 
     closeCardModal() {
@@ -390,34 +488,15 @@ class KnowledgeBase {
         }
     }
 
-    togglePreview() {
+    async togglePreview() {
         const previewDiv = document.getElementById('card-preview');
-        const contentTextarea = document.getElementById('card-content');
-        const previewToggle = document.getElementById('preview-toggle');
         
         if (previewDiv.style.display === 'none') {
-            // Show preview
-            const content = contentTextarea.value;
-            try {
-                marked.setOptions({
-                    breaks: true,
-                    gfm: true,
-                    headerIds: false,
-                    mangle: false,
-                });
-                previewDiv.innerHTML = marked.parse(content);
-            } catch (error) {
-                previewDiv.innerHTML = content.replace(/\n/g, '<br>');
-            }
-            
-            previewDiv.style.display = 'block';
-            contentTextarea.style.display = 'none';
-            previewToggle.textContent = 'Edit';
+            // Show preview mode
+            await this.showPreviewMode();
         } else {
-            // Show editor
-            previewDiv.style.display = 'none';
-            contentTextarea.style.display = 'block';
-            previewToggle.textContent = 'Preview';
+            // Show edit mode
+            this.showEditMode();
         }
     }
 

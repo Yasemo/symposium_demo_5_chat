@@ -4,6 +4,7 @@
     "dev": "deno run --allow-all --watch server.js"
   },
   "imports": {
-    "std/": "https://deno.land/std@0.208.0/"
+    "std/": "https://deno.land/std@0.208.0/",
+    "@deno/gfm": "jsr:@deno/gfm@^0.11.0"
   }
 }

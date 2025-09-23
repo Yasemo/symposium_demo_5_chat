@@ -76,7 +76,12 @@ export class AirtableConsultant extends BaseConsultant {
     const { records, recordCount, tableSchema } = apiResponse;
     
     if (recordCount === 0) {
-      return `## Query Results: No records found\n\n**Query Details:**\n- Table: ${tableSchema.name}\n- Filters: ${queryParams.filterByFormula || 'None'}\n- Records: 0`;
+      return `## Query Results: No records found
+
+**Query Details:**
+- **Table:** ${tableSchema.name}
+- **Filters:** ${queryParams.filterByFormula || 'None'}
+- **Records:** 0`;
     }
 
     // Get all unique field names from the records
@@ -87,47 +92,86 @@ export class AirtableConsultant extends BaseConsultant {
     
     const fieldNames = Array.from(allFields);
     
-    // Create table header
-    let markdown = `## Query Results: ${recordCount} record${recordCount !== 1 ? 's' : ''} from "${tableSchema.name}" table\n\n`;
+    // Generate clean HTML directly
+    let html = `## Query Results: ${recordCount} record${recordCount !== 1 ? 's' : ''} from "${tableSchema.name}" table
+
+<div class="airtable-results-container">
+  <table class="airtable-results-table">
+    <thead>
+      <tr>`;
     
-    // Create markdown table
-    const headers = fieldNames.map(field => this.cleanFieldName(field));
-    markdown += `| ${headers.join(' | ')} |\n`;
-    markdown += `|${headers.map(() => '---').join('|')}|\n`;
-    
-    // Add table rows
-    records.forEach(record => {
-      const row = fieldNames.map(field => {
-        const value = record.fields[field];
-        return this.formatFieldValue(value, field, tableSchema);
-      });
-      markdown += `| ${row.join(' | ')} |\n`;
+    // Add headers
+    fieldNames.forEach(field => {
+      const cleanName = this.cleanFieldName(field);
+      html += `
+        <th>${this.escapeHtml(cleanName)}</th>`;
     });
     
-    // Add query details
-    markdown += `\n**Query Details:**\n`;
-    markdown += `- Table: ${tableSchema.name}\n`;
+    html += `
+      </tr>
+    </thead>
+    <tbody>`;
+    
+    // Add data rows
+    records.forEach(record => {
+      html += `
+      <tr>`;
+      fieldNames.forEach(field => {
+        const value = record.fields[field];
+        const formattedValue = this.formatFieldValue(value, field, tableSchema);
+        html += `
+        <td>${this.escapeHtml(String(formattedValue))}</td>`;
+      });
+      html += `
+      </tr>`;
+    });
+    
+    html += `
+    </tbody>
+  </table>
+</div>
+
+**Query Details:**
+- **Table:** ${tableSchema.name}`;
     
     if (queryParams.filterByFormula) {
-      markdown += `- Filters: \`${queryParams.filterByFormula}\`\n`;
+      html += `
+- **Filters:** \`${queryParams.filterByFormula}\``;
     } else {
-      markdown += `- Filters: None\n`;
+      html += `
+- **Filters:** None`;
     }
     
     if (queryParams.fields && queryParams.fields.length > 0) {
-      markdown += `- Fields: ${queryParams.fields.join(', ')}\n`;
+      html += `
+- **Fields:** ${queryParams.fields.join(', ')}`;
     } else {
-      markdown += `- Fields: All fields\n`;
+      html += `
+- **Fields:** All fields`;
     }
     
     if (queryParams.sort && queryParams.sort.length > 0) {
       const sortDesc = queryParams.sort.map(s => `${s.field} (${s.direction})`).join(', ');
-      markdown += `- Sort: ${sortDesc}\n`;
+      html += `
+- **Sort:** ${sortDesc}`;
     }
     
-    markdown += `- Records: ${recordCount}${queryParams.maxRecords ? ` (limit: ${queryParams.maxRecords})` : ''}\n`;
+    html += `
+- **Records:** ${recordCount}${queryParams.maxRecords ? ` (limit: ${queryParams.maxRecords})` : ''}`;
     
-    return markdown;
+    return html;
+  }
+
+  escapeHtml(text) {
+    if (typeof text !== 'string') {
+      text = String(text);
+    }
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   cleanFieldName(fieldName) {

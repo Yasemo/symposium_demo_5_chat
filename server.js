@@ -5,6 +5,7 @@ import { getOpenRouterModels, getOpenRouterAuth, chatWithOpenRouter } from "./op
 import { seedDatabase } from "./seed-data.js";
 import { AirtableService } from "./airtable-client.js";
 import { ConsultantFactory, ConsultantConfigManager, ConsultantTemplateManager } from "./consultants/consultant-factory.js";
+import { CSS, KATEX_CSS, render } from "@deno/gfm";
 
 const db = await DatabaseFactory.create();
 await initDatabase(db);
@@ -275,6 +276,19 @@ async function handleApiRequest(req, url, db) {
       if (method === "POST") {
         const body = await req.json();
         return getConsultantTableSchema(db, body);
+      }
+      break;
+
+    case "/render-gfm":
+      if (method === "POST") {
+        const body = await req.json();
+        return renderGFM(body);
+      }
+      break;
+
+    case "/gfm-css":
+      if (method === "GET") {
+        return getGFMCSS();
       }
       break;
 
@@ -2672,6 +2686,55 @@ function setSelectedTags(db, { symposium_id, objective_id = null, tag_ids }) {
   } catch (error) {
     console.error('Error setting selected tags:', error);
     throw new Error(`Failed to set selected tags: ${error.message}`);
+  }
+}
+
+// GFM Rendering API handlers
+async function renderGFM({ markdown, options = {} }) {
+  if (!markdown || typeof markdown !== 'string') {
+    throw new Error('Markdown content is required');
+  }
+
+  try {
+    // Set default options
+    const renderOptions = {
+      baseUrl: options.baseUrl || 'https://github.com',
+      allowMath: options.allowMath || false,
+      inline: options.inline || false,
+      ...options
+    };
+
+    // Render markdown using Deno GFM
+    const html = render(markdown, renderOptions);
+
+    return {
+      success: true,
+      html: html,
+      options: renderOptions
+    };
+  } catch (error) {
+    console.error('GFM rendering error:', error);
+    return {
+      success: false,
+      error: error.message,
+      fallback_html: markdown.replace(/\n/g, '<br>')
+    };
+  }
+}
+
+function getGFMCSS() {
+  try {
+    return {
+      success: true,
+      css: CSS,
+      katex_css: KATEX_CSS
+    };
+  } catch (error) {
+    console.error('Error getting GFM CSS:', error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 }
 

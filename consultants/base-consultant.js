@@ -1,4 +1,5 @@
 import { chatWithOpenRouter } from "../openrouter.js";
+import { GLOBAL_FORMATTING_PROMPT } from "./formatting-prompt.js";
 
 // Simple encryption/decryption for API keys (in production, use proper encryption)
 function encryptConfig(config) {
@@ -24,6 +25,13 @@ export class BaseConsultant {
     this.systemPrompt = consultantData.system_prompt;
     this.templateId = consultantData.template_id;
     this.apiConfig = null;
+  }
+
+  // Helper method to get the enhanced system prompt with formatting instructions
+  getEnhancedSystemPrompt() {
+    return `${GLOBAL_FORMATTING_PROMPT}
+
+${this.systemPrompt}`;
   }
 
   async loadApiConfig() {
@@ -139,7 +147,7 @@ If no API call is needed, just set needsApiCall to false.`;
   }
 
   async formatResponse(userMessage, apiAction, apiResponse, context) {
-    let formatPrompt = `${this.systemPrompt}
+    let formatPrompt = `${this.getEnhancedSystemPrompt()}
 
 Context: ${context}
 
@@ -151,11 +159,11 @@ User Message: "${userMessage}"`;
 API Response Data:
 ${JSON.stringify(apiResponse, null, 2)}
 
-Based on the API response, provide a natural, helpful response to the user's question. Format the information clearly and conversationally.`;
+Based on the API response, provide a natural, helpful response to the user's question. Format the information clearly and conversationally using the enhanced markdown features available.`;
     } else {
       formatPrompt += `
 
-No external API call was needed. Respond to the user's message based on your role and expertise.`;
+No external API call was needed. Respond to the user's message based on your role and expertise. Use the enhanced markdown formatting features to create a rich, engaging response.`;
     }
 
     try {

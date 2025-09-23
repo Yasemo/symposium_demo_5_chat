@@ -121,7 +121,7 @@ class ChatInterface {
         this.renderMessages(messages);
     }
 
-    renderMessages(messages) {
+    async renderMessages(messages) {
         const chatContainer = document.getElementById('chat-messages');
         
         if (messages.length === 0) {
@@ -134,7 +134,10 @@ class ChatInterface {
             return;
         }
 
-        chatContainer.innerHTML = messages.map(message => this.createMessageHTML(message)).join('');
+        // Process messages asynchronously
+        const messageHTMLPromises = messages.map(message => this.createMessageHTML(message));
+        const messageHTMLs = await Promise.all(messageHTMLPromises);
+        chatContainer.innerHTML = messageHTMLs.join('');
         
         // Bind visibility toggle events
         messageManager.bindVisibilityToggleEvents();
@@ -143,7 +146,7 @@ class ChatInterface {
         this.scrollToBottom();
     }
 
-    createMessageHTML(message) {
+    async createMessageHTML(message) {
         const isUser = message.is_user;
         const author = isUser ? 'You' : (message.consultant_name || 'Assistant');
         const avatarText = isUser ? 'U' : (message.consultant_name ? message.consultant_name[0].toUpperCase() : 'A');
@@ -162,6 +165,9 @@ class ChatInterface {
         // Show "edited" indicator if message was edited
         const editedIndicator = message.updated_at ? '<span class="edited-indicator" title="This message was edited">(edited)</span>' : '';
 
+        // Await the formatted message text
+        const formattedText = await this.formatMessageText(message.content);
+
         return `
             <div class="message ${isUser ? 'user' : 'assistant'}" data-message-id="${message.id}">
                 <div class="message-avatar ${colorClass}">${avatarText}</div>
@@ -170,7 +176,7 @@ class ChatInterface {
                         <span class="message-author">${author}</span>
                         <span class="message-time">${time} ${editedIndicator}</span>
                     </div>
-                    <div class="message-text" data-message-id="${message.id}">${this.formatMessageText(message.content)}</div>
+                    <div class="message-text" data-message-id="${message.id}">${formattedText}</div>
                     <div class="message-controls">
                         ${visibilityToggle}
                         ${knowledgeBaseButton}
@@ -182,24 +188,28 @@ class ChatInterface {
         `;
     }
 
-    formatMessageText(text) {
-        // Render markdown using marked library
+    async formatMessageText(text) {
+        // Use enhanced markdown renderer if available
         try {
-            // Configure marked for security and GitHub-like rendering
-            marked.setOptions({
-                breaks: true, // Convert line breaks to <br>
-                gfm: true, // GitHub Flavored Markdown
-                headerIds: false, // Don't add IDs to headers
-                mangle: false, // Don't mangle email addresses
-            });
+            if (window.enhancedRenderer) {
+                return await window.enhancedRenderer.render(text);
+            } else {
+                // Fallback to basic marked
+                marked.setOptions({
+                    breaks: true, // Convert line breaks to <br>
+                    gfm: true, // GitHub Flavored Markdown
+                    headerIds: false, // Don't add IDs to headers
+                    mangle: false, // Don't mangle email addresses
+                });
 
-            // Render markdown and sanitize (marked is generally safe, but being extra careful)
-            const rendered = marked.parse(text);
+                // Render markdown and sanitize (marked is generally safe, but being extra careful)
+                const rendered = marked.parse(text);
 
-            // Add some basic sanitization for common XSS vectors
-            return rendered.replace(/<script[^>]*>.*?<\/script>/gi, '')
-                          .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
-                          .replace(/javascript:/gi, '');
+                // Add some basic sanitization for common XSS vectors
+                return rendered.replace(/<script[^>]*>.*?<\/script>/gi, '')
+                              .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+                              .replace(/javascript:/gi, '');
+            }
         } catch (error) {
             console.error('Error rendering markdown:', error);
             // Fallback to plain text with line breaks
@@ -239,7 +249,7 @@ class ChatInterface {
                 timestamp: new Date().toISOString(),
                 consultant_name: null
             };
-            this.addMessageToChat(userMessage);
+            await this.addMessageToChat(userMessage);
 
             // Show typing bubble
             this.showTypingBubble(consultant.name);
@@ -318,7 +328,7 @@ class ChatInterface {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
-    addMessage(message) {
+    async addMessage(message) {
         const chatContainer = document.getElementById('chat-messages');
         
         // Remove welcome message if it exists
@@ -328,7 +338,7 @@ class ChatInterface {
         }
 
         // Add new message
-        const messageHTML = this.createMessageHTML(message);
+        const messageHTML = await this.createMessageHTML(message);
         chatContainer.insertAdjacentHTML('beforeend', messageHTML);
         
         // Bind events for new message
@@ -338,7 +348,7 @@ class ChatInterface {
         this.scrollToBottom();
     }
 
-    addMessageToChat(message) {
+    async addMessageToChat(message) {
         const chatContainer = document.getElementById('chat-messages');
         
         // Remove welcome message if it exists
@@ -353,6 +363,9 @@ class ChatInterface {
         const avatarText = isUser ? 'U' : (message.consultant_name ? message.consultant_name[0].toUpperCase() : 'A');
         const time = utils.formatTime(message.timestamp);
 
+        // Await the formatted message text
+        const formattedText = await this.formatMessageText(message.content);
+
         const messageHTML = `
             <div class="message ${isUser ? 'user' : 'assistant'}" data-message-id="${message.id}">
                 <div class="message-avatar">${avatarText}</div>
@@ -361,7 +374,7 @@ class ChatInterface {
                         <span class="message-author">${author}</span>
                         <span class="message-time">${time}</span>
                     </div>
-                    <div class="message-text">${this.formatMessageText(message.content)}</div>
+                    <div class="message-text">${formattedText}</div>
                 </div>
             </div>
         `;

@@ -93,7 +93,9 @@ Examples that don't need API calls:
       return await super.formatResponse(userMessage, apiAction, apiResponse, context);
     }
 
-    const formatPrompt = `You are a research assistant. The user asked: "${userMessage}"
+    const formatPrompt = `${this.getEnhancedSystemPrompt()}
+
+You are a research assistant. The user asked: "${userMessage}"
 
 You performed a web search and received the following information:
 
@@ -105,10 +107,10 @@ Based on the search results, provide a comprehensive, well-formatted response th
 1. Directly answers the user's question
 2. Includes the most relevant and up-to-date information
 3. Maintains proper attribution to sources when mentioned
-4. Uses clear formatting with headers, lists, or emphasis where appropriate
+4. Uses the enhanced markdown formatting features to create rich, engaging content
 5. Is conversational and helpful
 
-Format your response using markdown for better readability.`;
+Use appropriate visualizations (charts, diagrams, callouts) when the data supports it. Format your response using the enhanced markdown capabilities for maximum clarity and engagement.`;
 
     try {
       return await chatWithOpenRouter(this.model, formatPrompt);
