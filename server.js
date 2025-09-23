@@ -889,7 +889,23 @@ function getKnowledgeBaseCards(db, symposiumId = null) {
     WHERE kb.is_global = 1
     ORDER BY kb.created_at DESC
   `);
-  return stmt.all();
+  
+  const cards = stmt.all();
+  
+  // Get tags for each card
+  const tagStmt = db.prepare(`
+    SELECT t.* FROM tags t
+    INNER JOIN card_tags ct ON t.id = ct.tag_id
+    WHERE ct.card_id = ?
+    ORDER BY t.name
+  `);
+  
+  // Add tags to each card
+  cards.forEach(card => {
+    card.tags = tagStmt.all(card.id);
+  });
+  
+  return cards;
 }
 
 function createKnowledgeBaseCard(db, { symposium_id = null, title, content, card_type = 'user_created', source_message_id = null }) {

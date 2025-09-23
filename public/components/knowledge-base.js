@@ -12,6 +12,13 @@ class KnowledgeBase {
         this.bindEvents();
         this.loadTags();
         
+        // Initialize modal state
+        this.modalOpen = false;
+        this.currentSearchTerm = '';
+        this.selectedTagFilters = [];
+        this.currentSort = 'updated_desc';
+        this.currentView = 'grid';
+        
         // Listen for symposium changes
         window.addEventListener('symposiumChanged', (e) => {
             this.onSymposiumChanged(e.detail);
@@ -93,6 +100,17 @@ class KnowledgeBase {
                 }, 2000);
             }
         });
+
+        // Knowledge Base expand button
+        const expandBtn = document.getElementById('knowledge-base-expand-btn');
+        if (expandBtn) {
+            expandBtn.addEventListener('click', () => {
+                this.openFullModal();
+            });
+        }
+
+        // Bind modal events
+        this.bindModalEvents();
     }
 
     async onSymposiumChanged(symposium) {
@@ -106,9 +124,14 @@ class KnowledgeBase {
             // Load global knowledge base cards (no symposium_id needed)
             this.cards = await api.getKnowledgeBaseCards();
             this.renderCards();
+            
+            // Update modal if open
+            if (this.modalOpen) {
+                this.filterAndRenderModalCards();
+            }
         } catch (error) {
-            console.error('Error creating tag:', error);
-            alert('Failed to create tag: ' + error.message);
+            console.error('Error loading cards:', error);
+            alert('Failed to load cards: ' + error.message);
         }
     }
 
@@ -329,6 +352,12 @@ class KnowledgeBase {
 
             card.is_visible = !card.is_visible;
             this.renderCards();
+            
+            // Update modal if it's open
+            if (this.modalOpen) {
+                this.filterAndRenderModalCards();
+                this.updateModalStats();
+            }
 
         } catch (error) {
             console.error('Error toggling card visibility:', error);
@@ -829,6 +858,13 @@ class KnowledgeBase {
             }
 
             this.renderCards();
+            
+            // Update modal if it's open
+            if (this.modalOpen) {
+                this.filterAndRenderModalCards();
+                this.updateModalStats();
+            }
+            
             this.closeCardModal();
             utils.showSuccess('Card saved successfully!');
 
@@ -837,6 +873,494 @@ class KnowledgeBase {
             utils.showError('Failed to save card');
         } finally {
             utils.hideLoading();
+        }
+    }
+
+    // Full Modal Methods
+    bindModalEvents() {
+        // Modal close events
+        const modal = document.getElementById('knowledge-base-modal');
+        const closeBtn = document.getElementById('kb-modal-close');
+        
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                this.closeFullModal();
+            });
+        }
+
+        // Close on backdrop click
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    this.closeFullModal();
+                }
+            });
+        }
+
+        // Search functionality
+        const searchInput = document.getElementById('kb-search-input');
+        const searchClear = document.getElementById('kb-search-clear');
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.currentSearchTerm = e.target.value;
+                this.filterAndRenderModalCards();
+            });
+        }
+
+        if (searchClear) {
+            searchClear.addEventListener('click', () => {
+                searchInput.value = '';
+                this.currentSearchTerm = '';
+                this.filterAndRenderModalCards();
+            });
+        }
+
+        // Sort functionality
+        const sortSelect = document.getElementById('kb-modal-sort');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', (e) => {
+                this.currentSort = e.target.value;
+                this.filterAndRenderModalCards();
+            });
+        }
+
+        // View toggle
+        const gridViewBtn = document.getElementById('kb-grid-view');
+        const listViewBtn = document.getElementById('kb-list-view');
+        
+        if (gridViewBtn) {
+            gridViewBtn.addEventListener('click', () => {
+                this.currentView = 'grid';
+                this.updateViewToggle();
+                this.updateCardsContainerView();
+            });
+        }
+
+        if (listViewBtn) {
+            listViewBtn.addEventListener('click', () => {
+                this.currentView = 'list';
+                this.updateViewToggle();
+                this.updateCardsContainerView();
+            });
+        }
+
+        // Modal add card button
+        const modalAddCardBtn = document.getElementById('kb-modal-add-card-btn');
+        if (modalAddCardBtn) {
+            modalAddCardBtn.addEventListener('click', () => {
+                this.openCardModal();
+            });
+        }
+
+        // Tag section toggle
+        const tagToggle = document.getElementById('kb-toggle-tag-section');
+        if (tagToggle) {
+            tagToggle.addEventListener('click', () => {
+                this.toggleModalTagSection();
+            });
+        }
+
+        // Modal tag creation
+        const modalCreateTagBtn = document.getElementById('kb-modal-create-tag');
+        const modalTagNameInput = document.getElementById('kb-modal-tag-name');
+        
+        if (modalCreateTagBtn) {
+            modalCreateTagBtn.addEventListener('click', () => {
+                this.handleModalCreateTag();
+            });
+        }
+
+        if (modalTagNameInput) {
+            modalTagNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.handleModalCreateTag();
+                }
+            });
+        }
+    }
+
+    openFullModal() {
+        const modal = document.getElementById('knowledge-base-modal');
+        if (!modal) return;
+
+        this.modalOpen = true;
+        modal.classList.add('active');
+        
+        // Initialize modal content
+        this.renderModalTags();
+        this.renderModalTagFilters();
+        this.filterAndRenderModalCards();
+        this.updateModalStats();
+        
+        // Focus search input
+        const searchInput = document.getElementById('kb-search-input');
+        if (searchInput) {
+            setTimeout(() => searchInput.focus(), 100);
+        }
+    }
+
+    closeFullModal() {
+        const modal = document.getElementById('knowledge-base-modal');
+        if (!modal) return;
+
+        this.modalOpen = false;
+        modal.classList.remove('active');
+        
+        // Reset modal state
+        this.currentSearchTerm = '';
+        this.selectedTagFilters = [];
+        
+        // Clear search input
+        const searchInput = document.getElementById('kb-search-input');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+    }
+
+    renderModalTags() {
+        const container = document.getElementById('kb-modal-existing-tags');
+        if (!container) return;
+
+        if (this.tags.length === 0) {
+            container.innerHTML = '<p class="empty-state-small">No tags created yet</p>';
+            return;
+        }
+
+        container.innerHTML = this.tags.map(tag => this.createModalTagHTML(tag)).join('');
+        this.bindModalTagEvents();
+    }
+
+    createModalTagHTML(tag) {
+        return `
+            <div class="tag-item" data-tag-id="${tag.id}">
+                <span class="tag-badge" style="background-color: ${tag.color}">
+                    ${tag.name}
+                </span>
+                <div class="tag-controls">
+                    <button class="tag-control-btn edit-tag-btn" title="Edit tag">✏️</button>
+                    <button class="tag-control-btn delete-tag-btn" title="Delete tag">🗑️</button>
+                </div>
+            </div>
+        `;
+    }
+
+    bindModalTagEvents() {
+        // Edit tag buttons
+        document.querySelectorAll('#kb-modal-existing-tags .edit-tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tagId = parseInt(btn.closest('.tag-item').dataset.tagId);
+                this.handleEditTag(tagId);
+            });
+        });
+
+        // Delete tag buttons
+        document.querySelectorAll('#kb-modal-existing-tags .delete-tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tagId = parseInt(btn.closest('.tag-item').dataset.tagId);
+                this.deleteTag(tagId);
+            });
+        });
+    }
+
+    renderModalTagFilters() {
+        const container = document.getElementById('kb-modal-tag-filters');
+        if (!container) return;
+
+        if (this.tags.length === 0) {
+            container.innerHTML = '<p class="empty-state-small">No tags available</p>';
+            return;
+        }
+
+        container.innerHTML = this.tags.map(tag => this.createModalTagFilterHTML(tag)).join('');
+        this.bindModalTagFilterEvents();
+    }
+
+    createModalTagFilterHTML(tag) {
+        const isActive = this.selectedTagFilters.includes(tag.id);
+        const cardCount = this.cards.filter(card => 
+            card.tags && card.tags.some(cardTag => cardTag.id === tag.id)
+        ).length;
+
+        return `
+            <div class="kb-tag-filter ${isActive ? 'active' : ''}" data-tag-id="${tag.id}">
+                <span class="kb-tag-filter-badge" style="background-color: ${tag.color}">
+                    ${tag.name}
+                </span>
+                <span class="tag-card-count">${cardCount}</span>
+            </div>
+        `;
+    }
+
+    bindModalTagFilterEvents() {
+        document.querySelectorAll('.kb-tag-filter').forEach(filter => {
+            filter.addEventListener('click', () => {
+                const tagId = parseInt(filter.dataset.tagId);
+                this.toggleTagFilter(tagId);
+            });
+        });
+    }
+
+    toggleTagFilter(tagId) {
+        const index = this.selectedTagFilters.indexOf(tagId);
+        if (index > -1) {
+            this.selectedTagFilters.splice(index, 1);
+        } else {
+            this.selectedTagFilters.push(tagId);
+        }
+        
+        this.renderModalTagFilters();
+        this.filterAndRenderModalCards();
+    }
+
+    filterAndRenderModalCards() {
+        let filteredCards = [...this.cards];
+
+        // Apply search filter
+        if (this.currentSearchTerm) {
+            const searchTerm = this.currentSearchTerm.toLowerCase();
+            filteredCards = filteredCards.filter(card =>
+                card.title.toLowerCase().includes(searchTerm) ||
+                card.content.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        // Apply tag filters - show cards that have ANY of the selected tags
+        if (this.selectedTagFilters.length > 0) {
+            filteredCards = filteredCards.filter(card => {
+                // If card has no tags, don't show it when filters are active
+                if (!card.tags || card.tags.length === 0) {
+                    return false;
+                }
+                // Show card if it has any of the selected tags
+                return card.tags.some(tag => 
+                    this.selectedTagFilters.includes(tag.id)
+                );
+            });
+        }
+
+        // Apply sorting
+        filteredCards.sort((a, b) => {
+            switch (this.currentSort) {
+                case 'updated_desc':
+                    return new Date(b.updated_at) - new Date(a.updated_at);
+                case 'created_desc':
+                    return new Date(b.created_at) - new Date(a.created_at);
+                case 'title_asc':
+                    return a.title.localeCompare(b.title);
+                case 'title_desc':
+                    return b.title.localeCompare(a.title);
+                default:
+                    return 0;
+            }
+        });
+
+        this.renderModalCards(filteredCards);
+        this.updateModalStats(filteredCards.length);
+    }
+
+    renderModalCards(cards) {
+        const container = document.getElementById('kb-modal-cards-container');
+        if (!container) return;
+
+        if (cards.length === 0) {
+            container.innerHTML = `
+                <div class="kb-modal-empty-state">
+                    <div class="empty-state-icon">📚</div>
+                    <h3>No cards found</h3>
+                    <p>Try adjusting your search or filter criteria</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = cards.map(card => this.createModalCardHTML(card)).join('');
+        this.bindModalCardEvents();
+    }
+
+    createModalCardHTML(card) {
+        const isVisible = card.is_visible;
+        const cardTypeIcon = card.card_type === 'consultant_response' ? '💬' : '📝';
+        const sourceInfo = card.source_consultant_name ? 
+            `From ${card.source_consultant_name}` : 
+            'User created';
+
+        const tagsHTML = card.tags && card.tags.length > 0 ? 
+            `<div class="kb-modal-card-tags">
+                ${card.tags.map(tag => 
+                    `<span class="kb-modal-card-tag" style="background-color: ${tag.color}">${tag.name}</span>`
+                ).join('')}
+            </div>` : '';
+
+        return `
+            <div class="kb-modal-card ${isVisible ? '' : 'hidden'}" data-card-id="${card.id}">
+                <div class="kb-modal-card-header">
+                    <div class="kb-modal-card-type-icon">${cardTypeIcon}</div>
+                    <div class="kb-modal-card-title-container">
+                        <div class="kb-modal-card-title">${card.title}</div>
+                        <div class="kb-modal-card-meta">${sourceInfo} • ${utils.formatTime(card.created_at)}</div>
+                    </div>
+                </div>
+                <div class="kb-modal-card-content">
+                    <div class="kb-modal-card-text">${card.content}</div>
+                    ${tagsHTML}
+                </div>
+                <div class="kb-modal-card-footer">
+                    <span class="kb-modal-card-source">${sourceInfo}</span>
+                    <span class="kb-modal-card-date">${utils.formatTime(card.updated_at)}</span>
+                </div>
+                <div class="kb-modal-card-controls">
+                    <button class="kb-modal-card-control-btn visibility-btn" title="${isVisible ? 'Hide from context' : 'Show in context'}">
+                        ${isVisible ? '👁️' : '🚫'}
+                    </button>
+                    <button class="kb-modal-card-control-btn expand-btn" title="Edit card">✏️</button>
+                    <button class="kb-modal-card-control-btn delete-btn" title="Delete card">🗑️</button>
+                </div>
+            </div>
+        `;
+    }
+
+    bindModalCardEvents() {
+        // Card click to edit
+        document.querySelectorAll('.kb-modal-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+                // Don't trigger if clicking on control buttons
+                if (e.target.closest('.kb-modal-card-controls')) return;
+                
+                const cardId = parseInt(card.dataset.cardId);
+                this.openCardModal(cardId);
+            });
+        });
+
+        // Visibility buttons
+        document.querySelectorAll('.kb-modal-card .visibility-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cardId = parseInt(btn.closest('.kb-modal-card').dataset.cardId);
+                this.toggleCardVisibility(cardId);
+            });
+        });
+
+        // Edit buttons
+        document.querySelectorAll('.kb-modal-card .expand-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cardId = parseInt(btn.closest('.kb-modal-card').dataset.cardId);
+                this.openCardModal(cardId);
+            });
+        });
+
+        // Delete buttons
+        document.querySelectorAll('.kb-modal-card .delete-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const cardId = parseInt(btn.closest('.kb-modal-card').dataset.cardId);
+                this.deleteCard(cardId);
+            });
+        });
+    }
+
+    updateViewToggle() {
+        const gridBtn = document.getElementById('kb-grid-view');
+        const listBtn = document.getElementById('kb-list-view');
+        
+        if (gridBtn && listBtn) {
+            gridBtn.classList.toggle('active', this.currentView === 'grid');
+            listBtn.classList.toggle('active', this.currentView === 'list');
+        }
+    }
+
+    updateCardsContainerView() {
+        const container = document.getElementById('kb-modal-cards-container');
+        if (!container) return;
+
+        container.classList.toggle('grid-view', this.currentView === 'grid');
+        container.classList.toggle('list-view', this.currentView === 'list');
+    }
+
+    updateModalStats(visibleCount = null) {
+        const cardsCountEl = document.getElementById('kb-cards-count');
+        const visibleCountEl = document.getElementById('kb-visible-count');
+        
+        if (cardsCountEl) {
+            cardsCountEl.textContent = `${this.cards.length} cards`;
+        }
+        
+        if (visibleCountEl) {
+            const count = visibleCount !== null ? visibleCount : this.cards.length;
+            visibleCountEl.textContent = `${count} visible`;
+        }
+    }
+
+    toggleModalTagSection() {
+        const section = document.getElementById('kb-modal-tag-section');
+        const toggle = document.getElementById('kb-toggle-tag-section');
+        
+        if (section && toggle) {
+            section.classList.toggle('collapsed');
+            toggle.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
+        }
+    }
+
+    async handleModalCreateTag() {
+        const nameInput = document.getElementById('kb-modal-tag-name');
+        const colorInput = document.getElementById('kb-modal-tag-color');
+        
+        const name = nameInput.value.trim();
+        const color = colorInput.value;
+
+        if (!name) {
+            utils.showError('Please enter a tag name');
+            nameInput.focus();
+            return;
+        }
+
+        const newTag = await this.createTag(name, color);
+        if (newTag) {
+            // Clear inputs
+            nameInput.value = '';
+            colorInput.value = '#4f46e5';
+            nameInput.focus();
+            
+            // Update modal displays
+            this.renderModalTags();
+            this.renderModalTagFilters();
+        }
+    }
+
+    // Override existing methods to update modal when needed
+    async loadTags() {
+        try {
+            this.tags = await api.getTags();
+            this.renderTagManagement();
+            
+            // Update modal if open
+            if (this.modalOpen) {
+                this.renderModalTags();
+                this.renderModalTagFilters();
+            }
+        } catch (error) {
+            console.error('Error loading tags:', error);
+            utils.showError('Failed to load tags');
+        }
+    }
+
+    async loadCards() {
+        try {
+            // Load global knowledge base cards (no symposium_id needed)
+            this.cards = await api.getKnowledgeBaseCards();
+            this.renderCards();
+            
+            // Update modal if open
+            if (this.modalOpen) {
+                this.filterAndRenderModalCards();
+            }
+        } catch (error) {
+            console.error('Error loading cards:', error);
+            alert('Failed to load cards: ' + error.message);
         }
     }
 }

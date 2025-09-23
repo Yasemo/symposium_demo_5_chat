@@ -136,9 +136,12 @@
             <!-- Knowledge Base -->
             <aside class="knowledge-base">
                 <div class="knowledge-base-header">
-                    <h3>Knowledge Base</h3>
+                    <h2>Knowledge Base</h2>
                     <div class="knowledge-base-controls">
                         <button id="add-card-btn" class="btn btn-secondary btn-small" disabled>+ Add Card</button>
+                        <button class="knowledge-base-expand-btn" id="knowledge-base-expand-btn" title="Expand Knowledge Base">
+                            <span class="expand-icon">⛶</span>
+                        </button>
                         <button class="knowledge-base-collapse-btn" id="knowledge-base-collapse-btn" title="Collapse Knowledge Base">
                             <span class="collapse-icon">▶</span>
                         </button>
@@ -337,6 +340,86 @@
                         <button type="submit" class="btn btn-primary">Save Card</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Base Full Page Modal -->
+    <div id="knowledge-base-modal" class="modal knowledge-base-full-modal">
+        <div class="modal-content knowledge-base-modal-content">
+            <div class="modal-header knowledge-base-modal-header">
+                <div class="modal-header-left">
+                    <h2>Knowledge Base</h2>
+                    <div class="knowledge-base-search-container">
+                        <input type="text" id="kb-search-input" placeholder="Search cards..." class="kb-search-input">
+                        <button id="kb-search-clear" class="kb-search-clear" title="Clear search">×</button>
+                    </div>
+                </div>
+                <div class="modal-header-right">
+                    <button id="kb-modal-add-card-btn" class="btn btn-primary btn-small">+ Add Card</button>
+                    <button class="close-btn" id="kb-modal-close">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body knowledge-base-modal-body">
+                <!-- Tag Management Section -->
+                <div class="kb-modal-tag-section collapsed" id="kb-modal-tag-section">
+                    <div class="kb-modal-tag-header">
+                        <h3>Tag Management</h3>
+                        <button id="kb-toggle-tag-section" class="kb-section-toggle">▼</button>
+                    </div>
+                    <div class="kb-modal-tag-content">
+                        <div class="kb-modal-tag-creation">
+                            <input type="text" id="kb-modal-tag-name" placeholder="Tag name..." maxlength="50">
+                            <input type="color" id="kb-modal-tag-color" value="#4f46e5" title="Tag color">
+                            <button id="kb-modal-create-tag" class="btn btn-secondary btn-small">Add Tag</button>
+                        </div>
+                        <div id="kb-modal-existing-tags" class="kb-modal-existing-tags">
+                            <!-- Tags will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter and Sort Controls -->
+                <div class="kb-modal-controls">
+                    <div class="kb-modal-filters">
+                        <div class="filter-group">
+                            <label>Filter by Tags:</label>
+                            <div id="kb-modal-tag-filters" class="kb-tag-filters">
+                                <!-- Tag filter buttons will be populated here -->
+                            </div>
+                        </div>
+                        <div class="filter-group">
+                            <label>Sort by:</label>
+                            <select id="kb-modal-sort" class="kb-sort-select">
+                                <option value="updated_desc">Recently Updated</option>
+                                <option value="created_desc">Recently Created</option>
+                                <option value="title_asc">Title A-Z</option>
+                                <option value="title_desc">Title Z-A</option>
+                            </select>
+                        </div>
+                        <!-- <div class="filter-group">
+                            <label>View:</label>
+                            <div class="view-toggle">
+                                <button id="kb-grid-view" class="view-btn active" title="Grid View">⊞</button>
+                                <button id="kb-list-view" class="view-btn" title="List View">☰</button>
+                            </div>
+                        </div> -->
+                    </div>
+                    <div class="kb-modal-stats">
+                        <span id="kb-cards-count">0 cards</span>
+                        <span id="kb-visible-count">0 visible</span>
+                    </div>
+                </div>
+
+                <!-- Cards Container -->
+                <div id="kb-modal-cards-container" class="kb-modal-cards-container grid-view">
+                    <div class="kb-modal-empty-state">
+                        <div class="empty-state-icon">📚</div>
+                        <h3>No knowledge base cards yet</h3>
+                        <p>Add consultant responses or create your own cards to get started</p>
+                        <button class="btn btn-primary" onclick="document.getElementById('kb-modal-add-card-btn').click()">Create Your First Card</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
