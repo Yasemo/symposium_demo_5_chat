@@ -323,6 +323,16 @@ async function handleApiRequest(req, url, db) {
           return deleteKnowledgeBaseCard(db, cardId);
         }
       }
+      // Handle objective operations with ID in path
+      if (path.startsWith("/objectives/") && path.split("/").length === 3) {
+        const objectiveId = path.split("/")[2];
+        if (method === "PUT") {
+          const body = await req.json();
+          return updateObjective(db, objectiveId, body);
+        } else if (method === "DELETE") {
+          return deleteObjective(db, objectiveId);
+        }
+      }
       // Handle objective task operations with ID in path
       if (path.startsWith("/objective-tasks/") && path.split("/").length === 3) {
         const taskId = path.split("/")[2];
@@ -1143,6 +1153,71 @@ async function createObjective(db, { symposium_id, title, description, order_ind
     RETURNING *
   `);
   return stmt.get(symposium_id, title, description, order_index);
+}
+
+async function updateObjective(db, objectiveId, { title, description }) {
+  if (!objectiveId || isNaN(objectiveId)) {
+    throw new Error('Valid objective ID is required');
+  }
+
+  if (!title || !description) {
+    throw new Error('Title and description are required');
+  }
+
+  // Check if objective exists
+  const objective = db.prepare("SELECT * FROM objectives WHERE id = ?").get(objectiveId);
+  if (!objective) {
+    throw new Error('Objective not found');
+  }
+
+  // Update the objective
+  const stmt = db.prepare(`
+    UPDATE objectives 
+    SET title = ?, description = ?, updated_at = datetime('now')
+    WHERE id = ?
+    RETURNING *
+  `);
+  const result = stmt.get(title, description, objectiveId);
+
+  if (!result) {
+    throw new Error('Failed to update objective');
+  }
+
+  return {
+    success: true,
+    objective: result
+  };
+}
+
+async function deleteObjective(db, objectiveId) {
+  if (!objectiveId || isNaN(objectiveId)) {
+    throw new Error('Valid objective ID is required');
+  }
+
+  // Check if objective exists
+  const objective = db.prepare("SELECT * FROM objectives WHERE id = ?").get(objectiveId);
+  if (!objective) {
+    throw new Error('Objective not found');
+  }
+
+  // Get count of related messages and tasks for user information
+  const messageCount = db.prepare("SELECT COUNT(*) as count FROM messages WHERE objective_id = ?").get(objectiveId).count;
+  const taskCount = db.prepare("SELECT COUNT(*) as count FROM objective_tasks WHERE objective_id = ?").get(objectiveId).count;
+
+  // Delete the objective (CASCADE will handle related records)
+  const stmt = db.prepare("DELETE FROM objectives WHERE id = ?");
+  const result = stmt.run(objectiveId);
+
+  if (result.changes === 0) {
+    throw new Error('Failed to delete objective');
+  }
+
+  return {
+    success: true,
+    deletedObjective: objective,
+    deletedMessages: messageCount,
+    deletedTasks: taskCount
+  };
 }
 
 // Objective Tasks operations

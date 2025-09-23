@@ -3839,3 +3839,60 @@ body {
     font-size: 0.7rem;
     opacity: 0.7;
 }
+
+/* Objective Management Styles */
+.objectives-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.objective-controls {
+    display: flex;
+    gap: 0.25rem;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    flex-shrink: 0;
+}
+
+.objective-item:hover .objective-controls {
+    opacity: 1;
+}
+
+.objective-control-btn {
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.objective-control-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+    transform: scale(1.1);
+}
+
+.delete-objective-btn:hover {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+}
+
+.edit-objective-btn:hover {
+    background: rgba(79, 70, 229, 0.2);
+    color: #4f46e5;
+}
+
+/* Objective Task Content Styles */
+.objective-task-item .task-content {
+    margin-left: 32px;
+}

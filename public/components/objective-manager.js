@@ -68,28 +68,84 @@ class ObjectiveManager {
         }
         
         if (this.objectives.length === 0) {
-            listContainer.innerHTML = '<p class="empty-state">No objectives yet</p>';
+            listContainer.innerHTML = `
+                <p class="empty-state">No objectives yet</p>
+                <button class="btn btn-primary btn-small" id="add-objective-btn">+ Add Objective</button>
+            `;
+            this.bindAddObjectiveButton();
             return;
         }
 
-        listContainer.innerHTML = this.objectives.map(objective => `
-            <div class="objective-item ${this.activeObjective?.id === objective.id ? 'active' : ''}" 
-                 data-objective-id="${objective.id}">
-                <div class="objective-info">
-                    <div class="objective-title">${objective.title}</div>
-                    <div class="objective-description">${this.truncateText(objective.description, 60)}</div>
-                </div>
+        listContainer.innerHTML = `
+            <div class="objectives-header">
+                <button class="btn btn-primary btn-small" id="add-objective-btn">+ Add Objective</button>
             </div>
-        `).join('');
+            ${this.objectives.map(objective => `
+                <div class="objective-item ${this.activeObjective?.id === objective.id ? 'active' : ''}" 
+                     data-objective-id="${objective.id}">
+                    <div class="objective-info">
+                        <div class="objective-title">${objective.title}</div>
+                        <div class="objective-description">${this.truncateText(objective.description, 60)}</div>
+                    </div>
+                    <div class="objective-controls">
+                        <button class="objective-control-btn edit-objective-btn" 
+                                data-objective-id="${objective.id}" title="Edit objective">✏️</button>
+                        <button class="objective-control-btn delete-objective-btn" 
+                                data-objective-id="${objective.id}" title="Delete objective">🗑️</button>
+                    </div>
+                </div>
+            `).join('')}
+        `;
 
         // Bind click events for objective selection
         listContainer.querySelectorAll('.objective-item').forEach(item => {
-            item.addEventListener('click', () => {
+            item.addEventListener('click', (e) => {
+                // Don't select if clicking on control buttons
+                if (e.target.closest('.objective-controls')) {
+                    return;
+                }
+                
                 const objectiveId = parseInt(item.dataset.objectiveId);
                 const objective = this.objectives.find(o => o.id === objectiveId);
                 if (objective) {
                     this.setActiveObjective(objective);
                 }
+            });
+        });
+
+        // Bind control button events
+        this.bindObjectiveControls();
+        this.bindAddObjectiveButton();
+    }
+
+    bindAddObjectiveButton() {
+        const addBtn = document.getElementById('add-objective-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => {
+                this.showObjectiveModal();
+            });
+        }
+    }
+
+    bindObjectiveControls() {
+        // Edit objective buttons
+        document.querySelectorAll('.edit-objective-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const objectiveId = parseInt(e.target.dataset.objectiveId);
+                const objective = this.objectives.find(o => o.id === objectiveId);
+                if (objective) {
+                    this.showObjectiveModal(objective);
+                }
+            });
+        });
+
+        // Delete objective buttons
+        document.querySelectorAll('.delete-objective-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const objectiveId = parseInt(e.target.dataset.objectiveId);
+                this.deleteObjective(objectiveId);
             });
         });
     }
@@ -162,7 +218,12 @@ class ObjectiveManager {
                         <div class="objective-task-actions">
                             <button class="btn btn-secondary btn-small" id="add-objective-task-btn">+ Add Task</button>
                         </div>
-                    ` : '<p class="empty-state">No tasks for this objective</p>'}
+                    ` : `
+                        <p class="empty-state">No tasks for this objective</p>
+                        <div class="objective-task-actions">
+                            <button class="btn btn-secondary btn-small" id="add-objective-task-btn">+ Add Task</button>
+                        </div>
+                    `}
                 </div>
             `;
             
@@ -540,6 +601,201 @@ class ObjectiveManager {
 
     getObjectives() {
         return this.objectives;
+    }
+
+    showObjectiveModal(objective = null) {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('objective-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'objective-modal';
+            modal.className = 'modal';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="objective-modal-title">Add Objective</h2>
+                        <button class="close-btn">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="objective-form">
+                            <div class="form-group">
+                                <label for="objective-title">Objective Title</label>
+                                <input type="text" id="objective-title" required placeholder="Enter a clear, concise objective title">
+                            </div>
+                            <div class="form-group">
+                                <label for="objective-description">Description</label>
+                                <textarea id="objective-description" rows="4" required placeholder="Describe what this objective aims to achieve..."></textarea>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="cancel-objective">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Objective</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Bind modal events
+            const form = modal.querySelector('#objective-form');
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.saveObjective();
+            });
+            modal.querySelector('.close-btn').addEventListener('click', () => {
+                this.hideObjectiveModal();
+            });
+            modal.querySelector('#cancel-objective').addEventListener('click', () => {
+                this.hideObjectiveModal();
+            });
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    this.hideObjectiveModal();
+                }
+            });
+        }
+
+        // Populate form if editing
+        const titleInput = modal.querySelector('#objective-title');
+        const descriptionInput = modal.querySelector('#objective-description');
+        const modalTitle = modal.querySelector('#objective-modal-title');
+
+        if (objective) {
+            modalTitle.textContent = 'Edit Objective';
+            titleInput.value = objective.title;
+            descriptionInput.value = objective.description;
+            this.editingObjective = objective;
+        } else {
+            modalTitle.textContent = 'Add Objective';
+            titleInput.value = '';
+            descriptionInput.value = '';
+            this.editingObjective = null;
+        }
+
+        modal.classList.add('active');
+        titleInput.focus();
+    }
+
+    hideObjectiveModal() {
+        const modal = document.getElementById('objective-modal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+        this.editingObjective = null;
+    }
+
+    async saveObjective() {
+        const titleInput = document.getElementById('objective-title');
+        const descriptionInput = document.getElementById('objective-description');
+        
+        const title = titleInput.value.trim();
+        const description = descriptionInput.value.trim();
+
+        if (!title || !description) {
+            utils.showError('Please enter both title and description');
+            return;
+        }
+
+        try {
+            utils.showLoading();
+
+            if (this.editingObjective) {
+                // Update existing objective
+                await api.updateObjective(this.editingObjective.id, {
+                    title,
+                    description
+                });
+                
+                // Update local objective data
+                const objIndex = this.objectives.findIndex(o => o.id === this.editingObjective.id);
+                if (objIndex !== -1) {
+                    this.objectives[objIndex] = { ...this.objectives[objIndex], title, description };
+                    if (this.activeObjective && this.activeObjective.id === this.editingObjective.id) {
+                        this.activeObjective = { ...this.activeObjective, title, description };
+                    }
+                }
+            } else {
+                // Create new objective
+                const symposium = symposiumManager?.getCurrentSymposium();
+                if (!symposium) {
+                    utils.showError('No symposium selected');
+                    return;
+                }
+
+                const newObjective = await api.createObjective({
+                    symposium_id: symposium.id,
+                    title,
+                    description
+                });
+                
+                this.objectives.push(newObjective);
+                
+                // Auto-select the new objective if it's the first one
+                if (this.objectives.length === 1) {
+                    this.setActiveObjective(newObjective);
+                }
+            }
+
+            this.updateUI();
+            this.hideObjectiveModal();
+            utils.showSuccess('Objective saved successfully!');
+
+        } catch (error) {
+            console.error('Error saving objective:', error);
+            utils.showError('Failed to save objective');
+        } finally {
+            utils.hideLoading();
+        }
+    }
+
+    async deleteObjective(objectiveId) {
+        try {
+            const objective = this.objectives.find(o => o.id === objectiveId);
+            if (!objective) return;
+
+            // Get counts for confirmation message
+            const tasks = await api.getObjectiveTasks(objectiveId);
+            const taskCount = tasks.length;
+            
+            let confirmMessage = `Are you sure you want to delete "${objective.title}"?`;
+            if (taskCount > 0) {
+                confirmMessage += `\n\nThis will also delete ${taskCount} task${taskCount > 1 ? 's' : ''} and any related messages.`;
+            }
+            confirmMessage += '\n\nThis action cannot be undone.';
+
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            utils.showLoading();
+            const result = await api.deleteObjective(objectiveId);
+            
+            // Remove from local objectives array
+            this.objectives = this.objectives.filter(o => o.id !== objectiveId);
+            
+            // Clear active objective if it was the deleted one
+            if (this.activeObjective && this.activeObjective.id === objectiveId) {
+                this.activeObjective = null;
+                // Auto-select first remaining objective
+                if (this.objectives.length > 0) {
+                    this.setActiveObjective(this.objectives[0]);
+                }
+            }
+            
+            this.updateUI();
+            
+            let successMessage = 'Objective deleted successfully!';
+            if (result.deletedMessages > 0 || result.deletedTasks > 0) {
+                successMessage += ` (${result.deletedTasks} tasks and ${result.deletedMessages} messages also removed)`;
+            }
+            utils.showSuccess(successMessage);
+
+        } catch (error) {
+            console.error('Error deleting objective:', error);
+            utils.showError('Failed to delete objective');
+        } finally {
+            utils.hideLoading();
+        }
     }
 
     async createObjectivesFromStructure(symposiumId, objectives) {

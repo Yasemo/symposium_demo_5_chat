@@ -238,6 +238,19 @@ class API {
         });
     }
 
+    async updateObjective(objectiveId, data) {
+        return this.request(`/objectives/${objectiveId}`, {
+            method: 'PUT',
+            body: data,
+        });
+    }
+
+    async deleteObjective(objectiveId) {
+        return this.request(`/objectives/${objectiveId}`, {
+            method: 'DELETE',
+        });
+    }
+
     // Objective Tasks endpoints
     async getObjectiveTasks(objectiveId) {
         return this.request(`/objective-tasks?objective_id=${objectiveId}`);
