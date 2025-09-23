@@ -24,7 +24,7 @@ body {
 
 /* Header */
 .app-header {
-    background-color: #d4d1c2;
+    background-color: #474333;
     color: white;
     padding: 1rem;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
@@ -94,7 +94,7 @@ body {
 }
 
 .credit-amount.success {
-    color: #059669;
+    color: #2ed763;
 }
 
 /* Main Content */
