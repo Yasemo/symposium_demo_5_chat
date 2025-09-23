@@ -105,23 +105,38 @@
 
                 <div class="chat-input-container">
                     <!-- Consultant Tabs -->
-                    <div class="consultant-tabs-container">
-                        <div class="consultant-tabs" id="consultant-tabs">
-                            <!-- Tabs will be dynamically generated -->
+                    <div class="consultant-tabs-container collapsible">
+                        <div class="section-header" data-section="consultant-tabs">
+                            <h4>Consultants</h4>
+                            <button class="collapse-toggle" aria-label="Toggle consultants section">
+                                <span class="collapse-icon">▼</span>
+                            </button>
                         </div>
-                        <button class="manage-consultants-btn" id="manage-consultants-btn" title="Manage Consultants" disabled>
-                            ⚙️
-                        </button>
+                        <div class="section-content" id="consultant-tabs-content">
+                            <div class="consultant-tabs" id="consultant-tabs">
+                                <!-- Tabs will be dynamically generated -->
+                            </div>
+                            <button class="manage-consultants-btn" id="manage-consultants-btn" title="Manage Consultants" disabled>
+                                ⚙️
+                            </button>
+                        </div>
                     </div>
-                    
+
                     <!-- Tag Selector for Context -->
-                    <div class="tag-selector-section" id="tag-selector-section" style="display: none;">
-                        <div class="tag-selector-header">
+                    <div class="tag-selector-section collapsible" id="tag-selector-section" style="display: none;">
+                        <div class="section-header" data-section="tag-selector">
                             <h4>Add Knowledge Cards by Tags</h4>
-                            <span class="context-preview" id="context-preview">0 cards selected</span>
+                            <button class="collapse-toggle" aria-label="Toggle tag selector section">
+                                <span class="collapse-icon">▼</span>
+                            </button>
                         </div>
-                        <div class="tag-selector-grid" id="tag-selector-grid">
-                            <!-- Available tags will be populated here -->
+                        <div class="section-content" id="tag-selector-content">
+                            <div class="tag-selector-header">
+                                <span class="context-preview" id="context-preview">0 cards selected</span>
+                            </div>
+                            <div class="tag-selector-grid" id="tag-selector-grid">
+                                <!-- Available tags will be populated here -->
+                            </div>
                         </div>
                     </div>
                     

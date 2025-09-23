@@ -3,6 +3,8 @@ class PanelCollapseManager {
     constructor() {
         this.sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
         this.knowledgeBaseCollapsed = localStorage.getItem('knowledgeBaseCollapsed') === 'true';
+        this.consultantTabsCollapsed = localStorage.getItem('consultantTabsCollapsed') === 'true';
+        this.tagSelectorCollapsed = localStorage.getItem('tagSelectorCollapsed') === 'true';
         this.init();
     }
 
@@ -22,6 +24,22 @@ class PanelCollapseManager {
             this.toggleKnowledgeBase();
         });
 
+        // Consultant tabs collapse toggle
+        const consultantTabsToggle = document.querySelector('[data-section="consultant-tabs"] .collapse-toggle');
+        if (consultantTabsToggle) {
+            consultantTabsToggle.addEventListener('click', () => {
+                this.toggleConsultantTabs();
+            });
+        }
+
+        // Tag selector collapse toggle
+        const tagSelectorToggle = document.querySelector('[data-section="tag-selector"] .collapse-toggle');
+        if (tagSelectorToggle) {
+            tagSelectorToggle.addEventListener('click', () => {
+                this.toggleTagSelector();
+            });
+        }
+
         // Handle window resize to ensure proper layout
         window.addEventListener('resize', () => {
             this.handleResize();
@@ -35,6 +53,14 @@ class PanelCollapseManager {
 
         if (this.knowledgeBaseCollapsed) {
             this.collapseKnowledgeBase();
+        }
+
+        if (this.consultantTabsCollapsed) {
+            this.collapseConsultantTabs();
+        }
+
+        if (this.tagSelectorCollapsed) {
+            this.collapseTagSelector();
         }
     }
 
@@ -51,6 +77,22 @@ class PanelCollapseManager {
             this.expandKnowledgeBase();
         } else {
             this.collapseKnowledgeBase();
+        }
+    }
+
+    toggleConsultantTabs() {
+        if (this.consultantTabsCollapsed) {
+            this.expandConsultantTabs();
+        } else {
+            this.collapseConsultantTabs();
+        }
+    }
+
+    toggleTagSelector() {
+        if (this.tagSelectorCollapsed) {
+            this.expandTagSelector();
+        } else {
+            this.collapseTagSelector();
         }
     }
 
@@ -122,6 +164,46 @@ class PanelCollapseManager {
         }));
     }
 
+    collapseConsultantTabs() {
+        const consultantTabsContainer = document.querySelector('.consultant-tabs-container.collapsible');
+
+        if (consultantTabsContainer) {
+            consultantTabsContainer.classList.add('collapsed');
+            this.consultantTabsCollapsed = true;
+            localStorage.setItem('consultantTabsCollapsed', 'true');
+        }
+    }
+
+    expandConsultantTabs() {
+        const consultantTabsContainer = document.querySelector('.consultant-tabs-container.collapsible');
+
+        if (consultantTabsContainer) {
+            consultantTabsContainer.classList.remove('collapsed');
+            this.consultantTabsCollapsed = false;
+            localStorage.setItem('consultantTabsCollapsed', 'false');
+        }
+    }
+
+    collapseTagSelector() {
+        const tagSelectorSection = document.querySelector('.tag-selector-section.collapsible');
+
+        if (tagSelectorSection) {
+            tagSelectorSection.classList.add('collapsed');
+            this.tagSelectorCollapsed = true;
+            localStorage.setItem('tagSelectorCollapsed', 'true');
+        }
+    }
+
+    expandTagSelector() {
+        const tagSelectorSection = document.querySelector('.tag-selector-section.collapsible');
+
+        if (tagSelectorSection) {
+            tagSelectorSection.classList.remove('collapsed');
+            this.tagSelectorCollapsed = false;
+            localStorage.setItem('tagSelectorCollapsed', 'false');
+        }
+    }
+
     updateMainContentGrid() {
         const mainContent = document.querySelector('.main-content');
         const sidebarCollapsed = this.sidebarCollapsed;
@@ -154,6 +236,14 @@ class PanelCollapseManager {
 
     isKnowledgeBaseCollapsed() {
         return this.knowledgeBaseCollapsed;
+    }
+
+    isConsultantTabsCollapsed() {
+        return this.consultantTabsCollapsed;
+    }
+
+    isTagSelectorCollapsed() {
+        return this.tagSelectorCollapsed;
     }
 }
 
